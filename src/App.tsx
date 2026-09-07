@@ -1,8 +1,10 @@
 import {
   startTransition,
+  useCallback,
   useDeferredValue,
   useEffect,
   useEffectEvent,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -21,6 +23,8 @@ import {
   ChevronsRight,
   CircleAlert,
   Code2,
+  Columns2,
+  Columns3,
   FileCode2,
   Files,
   FolderGit2,
@@ -41,14 +45,30 @@ import {
   X,
 } from "lucide-react";
 import RevisionPanel from "./RevisionPanel";
-import { alignPanels, formatDate, MAX_LINES, type DisplayLine } from "./code";
-import type { Commit, RecentRepository, Repository, Revision } from "./types";
+import {
+  alignPanels,
+  alignPair,
+  formatDate,
+  MAX_LINES,
+  unionChangedRows,
+  type DisplayLine,
+} from "./code";
+import type {
+  Commit,
+  RecentFile,
+  RecentRepository,
+  Repository,
+  Revision,
+} from "./types";
 
-const noMarks: number[] = [];
 const noLines: DisplayLine[] = [];
 const api = window.gitvolution;
 const RECENT_KEY = "gitvolution.recent";
-const RECENT_LIMIT = 10;
+const RECENT_LIMIT = 5;
+const RECENT_FILES_KEY = "gitvolution.recentFiles";
+const RECENT_FILES_LIMIT = 10;
+const CACHE_LIMIT = 80;
+const PRELOAD_RADIUS = 4;
 
 function loadRecent(): RecentRepository[] {
   try {
@@ -77,15 +97,62 @@ function saveRecent(list: RecentRepository[]) {
   }
 }
 
+function loadRecentFiles(): RecentFile[] {
+  try {
+    const raw = localStorage.getItem(RECENT_FILES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (entry) =>
+          entry &&
+          typeof entry.repoPath === "string" &&
+          typeof entry.repoName === "string" &&
+          typeof entry.branch === "string" &&
+          typeof entry.file === "string",
+      )
+      .slice(0, RECENT_FILES_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentFiles(list: RecentFile[]) {
+  try {
+    localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(list));
+  } catch {
+    // Storage is unavailable; recents remain available for this session only.
+  }
+}
+
 function errorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
     : "Something went wrong. Please try again.";
 }
 
+function revisionContent(value: Revision | undefined): string | null {
+  if (!value) return null;
+  const text = value.missing ? "" : value.content;
+  return text ?? null;
+}
+
+function changedRows(lines: DisplayLine[]) {
+  const rows: number[] = [];
+  for (let i = 0; i < lines.length && i < MAX_LINES; i++)
+    if (lines[i].changed) rows.push(i);
+  return rows;
+}
+
+function cacheKey(repository: Repository, commit: Commit) {
+  return `${repository.id}:${commit.hash}:${commit.path}`;
+}
+
 export default function App() {
   const [repository, setRepository] = useState<Repository | null>(null);
   const [recent, setRecent] = useState<RecentRepository[]>(loadRecent);
+  const [recentFiles, setRecentFiles] = useState<RecentFile[]>(loadRecentFiles);
   const [selectedFile, setSelectedFile] = useState("");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -100,7 +167,11 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [syncScroll, setSyncScroll] = useState(true);
   const [showChanges, setShowChanges] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [viewMode, setViewMode] = useState<"compare" | "diff">("diff");
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(
+    new Set<number>(),
+  );
   const [changeIndex, setChangeIndex] = useState(-1);
   const [jumpStamp, setJumpStamp] = useState(0);
   const [revisions, setRevisions] = useState<{
@@ -125,12 +196,30 @@ export default function App() {
   const revisionKey = current ? `${key}:${current.hash}` : "";
   const loaded = revisions?.key === revisionKey ? revisions : null;
   const loadingRevisions = Boolean(revisionKey && !loaded);
-  const currentChanges = loaded
-    ? loaded.columns[1].reduce<number[]>((rows, line, i) => {
-        if (line.changed && i < MAX_LINES) rows.push(i);
-        return rows;
-      }, [])
-    : noMarks;
+  const diff = viewMode === "diff";
+  const pairColumns = useMemo(() => {
+    if (!diff || !loaded) return null;
+    return alignPair(
+      revisionContent(loaded.values[0]),
+      revisionContent(loaded.values[1]),
+    );
+  }, [diff, loaded]);
+  const prevLines =
+    pairColumns ? pairColumns.columns[0] : loaded?.columns[0] ?? noLines;
+  const currentLines = pairColumns
+    ? pairColumns.columns[1]
+    : loaded?.columns[1] ?? noLines;
+  const nextLines = diff ? null : loaded?.columns[2] ?? noLines;
+  const collapseChanged = useMemo(
+    () =>
+      unionChangedRows(
+        diff
+          ? [prevLines, currentLines]
+          : [prevLines, currentLines, nextLines ?? noLines],
+      ),
+    [diff, prevLines, currentLines, nextLines],
+  );
+  const currentChanges = changedRows(currentLines);
   const currentHunks = currentChanges.reduce<number[]>((hunks, row, i) => {
     if (i === 0 || row !== currentChanges[i - 1] + 1) hunks.push(row);
     return hunks;
@@ -143,6 +232,9 @@ export default function App() {
     repository?.files.filter((file) =>
       file.toLowerCase().includes(deferredSearch.toLowerCase()),
     ) ?? [];
+  const currentRecentFiles = repository
+    ? recentFiles.filter((entry) => entry.repoPath === repository.path)
+    : [];
 
   function addRecent(repo: Repository) {
     setRecent((previous) => {
@@ -151,6 +243,27 @@ export default function App() {
         ...previous.filter((entry) => entry.path !== repo.path),
       ].slice(0, RECENT_LIMIT);
       saveRecent(next);
+      return next;
+    });
+  }
+
+  function removeRecent(path: string) {
+    setRecent((previous) => {
+      const next = previous.filter((entry) => entry.path !== path);
+      saveRecent(next);
+      return next;
+    });
+  }
+
+  function addRecentFile(repo: Repository, file: string) {
+    setRecentFiles((previous) => {
+      const next = [
+        { repoPath: repo.path, repoName: repo.name, branch: repo.branch, file },
+        ...previous.filter(
+          (entry) => entry.repoPath !== repo.path || entry.file !== file,
+        ),
+      ].slice(0, RECENT_FILES_LIMIT);
+      saveRecentFiles(next);
       return next;
     });
   }
@@ -216,6 +329,33 @@ export default function App() {
     setIndex(0);
     setPlaying(false);
     setError("");
+    if (repository) addRecentFile(repository, file);
+  }
+
+  async function openRecentFile(entry: RecentFile) {
+    if (!api) {
+      setError(
+        "Open the desktop app with npm start to access local Git repositories.",
+      );
+      return;
+    }
+    if (repository?.path === entry.repoPath) {
+      selectFile(entry.file);
+      return;
+    }
+    setOpening(true);
+    setPlaying(false);
+    setError("");
+    try {
+      const repo = await api.openPath(entry.repoPath);
+      if (!repo) return;
+      applyRepository(repo);
+      selectFile(entry.file);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setOpening(false);
+    }
   }
 
   async function browseFile() {
@@ -254,19 +394,24 @@ export default function App() {
   useEffect(() => {
     if (!api || !repository || !current || !historyState) return;
     let canceled = false;
-    // Coalesce quick scrubbing so every pointer movement does not spawn Git processes.
+    const commits = [
+      historyState.commits[currentIndex - 1],
+      current,
+      historyState.commits[currentIndex + 1],
+    ];
+    const allCached = commits.every(
+      (commit) => !commit || cache.current.has(cacheKey(repository, commit)),
+    );
+    // Coalesce quick scrubbing so every pointer movement does not spawn Git processes,
+    // but apply instantly when the neighbor revisions are already cached.
+    const delay = allCached ? 0 : 90;
     const timer = setTimeout(async () => {
       try {
-        const commits = [
-          historyState.commits[currentIndex - 1],
-          current,
-          historyState.commits[currentIndex + 1],
-        ];
         const values = await Promise.all(
           commits.map(async (commit) => {
             if (!commit) return undefined;
-            const cacheKey = `${repository.id}:${commit.hash}:${commit.path}`;
-            const cached = cache.current.get(cacheKey);
+            const key2 = cacheKey(repository, commit);
+            const cached = cache.current.get(key2);
             if (cached) return cached;
             const value = await api.getRevision(
               repository.id,
@@ -274,23 +419,18 @@ export default function App() {
               commit.path,
             );
             if (!canceled) {
-              cache.current.set(cacheKey, value);
-              if (cache.current.size > 24)
+              cache.current.set(key2, value);
+              if (cache.current.size > CACHE_LIMIT)
                 cache.current.delete(cache.current.keys().next().value!);
             }
             return value;
           }),
         );
         if (canceled) return;
-        const content = (value: Revision | undefined): string | null => {
-          if (!value) return null;
-          const text = value.missing ? "" : value.content;
-          return text ?? null;
-        };
         const aligned = alignPanels(
-          content(values[0]),
-          content(values[1]),
-          content(values[2]),
+          revisionContent(values[0]),
+          revisionContent(values[1]),
+          revisionContent(values[2]),
         );
         setRevisions({
           key: revisionKey,
@@ -309,12 +449,47 @@ export default function App() {
         setError(errorMessage(error));
         setPlaying(false);
       }
-    }, 90);
+    }, delay);
     return () => {
       canceled = true;
       clearTimeout(timer);
     };
   }, [repository, current, currentIndex, historyState, revisionKey]);
+
+  useEffect(() => {
+    if (!api || !repository || !historyState) return;
+    if (historyState.key !== key) return;
+    let canceled = false;
+    const timer = setTimeout(async () => {
+      const commits = historyState.commits;
+      const start = Math.max(0, currentIndex - PRELOAD_RADIUS);
+      const end = Math.min(commits.length - 1, currentIndex + PRELOAD_RADIUS);
+      for (let i = start; i <= end; i++) {
+        if (canceled) return;
+        const commit = commits[i];
+        if (!commit) continue;
+        const preloadKey = cacheKey(repository, commit);
+        if (cache.current.has(preloadKey)) continue;
+        try {
+          const value = await api.getRevision(
+            repository.id,
+            commit.hash,
+            commit.path,
+          );
+          if (canceled) return;
+          cache.current.set(preloadKey, value);
+          if (cache.current.size > CACHE_LIMIT)
+            cache.current.delete(cache.current.keys().next().value!);
+        } catch {
+          // Prefetching is best-effort; failures surface on the active commit.
+        }
+      }
+    }, 220);
+    return () => {
+      canceled = true;
+      clearTimeout(timer);
+    };
+  }, [repository, key, historyState, currentIndex]);
 
   useEffect(() => {
     if (!playing || loadingRevisions) return;
@@ -328,7 +503,12 @@ export default function App() {
 
   useEffect(() => {
     setChangeIndex(-1);
-  }, [revisionKey]);
+    setExpanded(new Set<number>());
+  }, [revisionKey, viewMode, collapsed]);
+
+  const expandGap = useCallback((from: number) => {
+    setExpanded((previous) => new Set(previous).add(from));
+  }, []);
 
   function navigate(nextIndex: number) {
     setPlaying(false);
@@ -377,6 +557,12 @@ export default function App() {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       navigate(currentIndex + (event.key === "ArrowLeft" ? -1 : 1));
+      return;
+    }
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      if (!currentHunks.length) return;
+      event.preventDefault();
+      jumpToChange(event.key === "ArrowDown" ? 1 : -1);
       return;
     }
     if (event.key === "n" || event.key === "N") {
@@ -500,25 +686,56 @@ export default function App() {
               </span>
               <ChevronRight size={15} />
             </button>
+            {repository && currentRecentFiles.length > 0 && (
+              <div className="recent-section">
+                <div className="file-section-heading">
+                  <span>RECENT FILES</span>
+                </div>
+                {currentRecentFiles.map((entry) => (
+                  <button
+                    key={entry.file}
+                    className={`recent-item ${entry.file === selectedFile ? "selected" : ""}`}
+                    onClick={() => openRecentFile(entry)}
+                    disabled={opening}
+                    title={`${entry.file} · ${entry.repoName}`}
+                  >
+                    <FileCode2 size={15} />
+                    <span>
+                      <strong>{entry.file.split("/").at(-1)}</strong>
+                      <small>{entry.file}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             {!repository && recent.length > 0 && (
               <div className="recent-section">
                 <div className="file-section-heading">
                   <span>RECENT</span>
                 </div>
                 {recent.map((entry) => (
-                  <button
-                    key={entry.path}
-                    className="recent-item"
-                    onClick={() => openRepositoryPath(entry.path)}
-                    disabled={opening}
-                    title={entry.path}
-                  >
-                    <FolderGit2 size={15} />
-                    <span>
-                      <strong>{entry.name}</strong>
-                      <small>{entry.path}</small>
-                    </span>
-                  </button>
+                  <div key={entry.path} className="recent-item-wrap">
+                    <button
+                      className="recent-item"
+                      onClick={() => openRepositoryPath(entry.path)}
+                      disabled={opening}
+                      title={entry.path}
+                    >
+                      <FolderGit2 size={15} />
+                      <span>
+                        <strong>{entry.name}</strong>
+                        <small>{entry.path}</small>
+                      </span>
+                    </button>
+                    <button
+                      className="recent-remove"
+                      onClick={() => removeRecent(entry.path)}
+                      title="Remove from recents"
+                      aria-label={`Remove ${entry.name} from recents`}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -701,17 +918,46 @@ export default function App() {
                   <div className="welcome-recent">
                     <span className="eyebrow">RECENT REPOSITORIES</span>
                     {recent.map((entry) => (
+                      <div key={entry.path} className="recent-item-wrap">
+                        <button
+                          className="recent-item"
+                          onClick={() => openRepositoryPath(entry.path)}
+                          disabled={opening}
+                          title={entry.path}
+                        >
+                          <FolderGit2 size={16} />
+                          <span>
+                            <strong>{entry.name}</strong>
+                            <small>{entry.path}</small>
+                          </span>
+                        </button>
+                        <button
+                          className="recent-remove"
+                          onClick={() => removeRecent(entry.path)}
+                          title="Remove from recents"
+                          aria-label={`Remove ${entry.name} from recents`}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {repository && currentRecentFiles.length > 0 && (
+                  <div className="welcome-recent">
+                    <span className="eyebrow">RECENT FILES</span>
+                    {currentRecentFiles.map((entry) => (
                       <button
-                        key={entry.path}
+                        key={entry.file}
                         className="recent-item"
-                        onClick={() => openRepositoryPath(entry.path)}
+                        onClick={() => openRecentFile(entry)}
                         disabled={opening}
-                        title={entry.path}
+                        title={`${entry.file} · ${entry.repoName}`}
                       >
-                        <FolderGit2 size={16} />
+                        <FileCode2 size={16} />
                         <span>
-                          <strong>{entry.name}</strong>
-                          <small>{entry.path}</small>
+                          <strong>{entry.file.split("/").at(-1)}</strong>
+                          <small>{entry.file}</small>
                         </span>
                         <ArrowUpRight size={14} />
                       </button>
@@ -796,6 +1042,26 @@ export default function App() {
                   <strong title={selectedFile}>{fileName}</strong>
                 </div>
                 <div className="viewer-options">
+                  <div className="view-mode-switch" role="group" aria-label="View mode">
+                    <button
+                      className={viewMode === "compare" ? "active" : ""}
+                      onClick={() => setViewMode("compare")}
+                      aria-pressed={viewMode === "compare"}
+                      title="Three panels: previous, current, and next revisions"
+                    >
+                      <Columns3 size={14} />
+                      <span>Evolution</span>
+                    </button>
+                    <button
+                      className={viewMode === "diff" ? "active" : ""}
+                      onClick={() => setViewMode("diff")}
+                      aria-pressed={viewMode === "diff"}
+                      title="Two panels: what this commit changed (previous vs current)"
+                    >
+                      <Columns2 size={14} />
+                      <span>Change</span>
+                    </button>
+                  </div>
                   <button
                     className={`toolbar-toggle ${showChanges ? "active" : ""}`}
                     onClick={() => setShowChanges(!showChanges)}
@@ -880,29 +1146,42 @@ export default function App() {
                   )}
                 </span>
               </div>
-              <div className="revision-panels" ref={panels}>
-                {(["previous", "current", "next"] as const).map(
-                  (position, i) => (
-                    <RevisionPanel
-                      key={position}
-                      position={position}
-                      commit={history[currentIndex + i - 1]}
-                      revision={loaded?.values[i]}
-                      loading={
-                        loadingHistory ||
-                        (Boolean(history[currentIndex + i - 1]) &&
-                          loadingRevisions)
-                      }
-                      hasFile={Boolean(selectedFile)}
-                      lines={loaded?.columns[i] ?? noLines}
-                      showChanges={showChanges}
-                      collapsed={collapsed}
-                      jumpLine={i === 1 ? jumpLine : null}
-                      jumpStamp={i === 1 ? jumpStamp : 0}
-                      onScroll={handleScroll}
-                    />
-                  ),
-                )}
+              <div
+                className={`revision-panels ${diff ? "two-panel" : ""}`}
+                ref={panels}
+              >
+                {(diff
+                  ? (["previous", "current"] as const)
+                  : (["previous", "current", "next"] as const)
+                ).map((position, i) => (
+                  <RevisionPanel
+                    key={position}
+                    position={position}
+                    commit={history[currentIndex + i - 1]}
+                    revision={loaded?.values[i]}
+                    loading={
+                      loadingHistory ||
+                      (Boolean(history[currentIndex + i - 1]) &&
+                        loadingRevisions)
+                    }
+                    hasFile={Boolean(selectedFile)}
+                    lines={
+                      i === 0
+                        ? prevLines
+                        : i === 1
+                          ? currentLines
+                          : nextLines ?? noLines
+                    }
+                    showChanges={showChanges}
+                    collapsed={collapsed}
+                    collapseChanged={collapseChanged}
+                    expanded={expanded}
+                    onExpand={expandGap}
+                    jumpLine={i === 1 ? jumpLine : null}
+                    jumpStamp={i === 1 ? jumpStamp : 0}
+                    onScroll={handleScroll}
+                  />
+                ))}
               </div>
               <section className="timeline" aria-label="File history timeline">
                 <div className="timeline-top">
@@ -1061,8 +1340,13 @@ export default function App() {
                     </kbd>{" "}
                     to step commits
                     <span className="subtle-dot" />
-                    <kbd>N</kbd>
-                    <kbd>P</kbd> jump changes
+                    <kbd>
+                      <ArrowUp size={10} />
+                    </kbd>
+                    <kbd>
+                      <ArrowDown size={10} />
+                    </kbd>{" "}
+                    jump changes
                   </span>
                 </div>
               </section>

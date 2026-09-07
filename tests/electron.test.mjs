@@ -112,6 +112,12 @@ test(
     await commit("Give the calculator a more descriptive name");
     await writeFile(join(repo, "src/calculate-total.ts"), final);
     await commit("Round the total to two decimal places");
+    await writeFile(join(repo, "src/flux.txt"), "line one\nline two\n");
+    await commit("Start flux file as text");
+    await writeFile(join(repo, "src/flux.txt"), Buffer.from([1, 2, 0, 3]));
+    await commit("Turn flux file binary");
+    await writeFile(join(repo, "src/flux.txt"), "line zero\nline one\nline two\nline three\n");
+    await commit("Turn flux file back to text");
     await writeFile(join(repo, "new-file.txt"), "Not committed yet.\n");
     await git("add", "new-file.txt");
     const statusBefore = await git("status", "--porcelain=v1");
@@ -168,6 +174,19 @@ test(
     await page.getByRole("textbox", { name: "Find a file" }).fill("calculate");
     await expect(page.locator(".file-item")).toHaveCount(1);
     await page.locator(".file-item").click();
+    // The default view is the two-panel change diff; use the three-panel evolution view.
+    const evolutionButton = page.getByRole("button", {
+      name: "Evolution",
+      exact: true,
+    });
+    if ((await evolutionButton.getAttribute("aria-pressed")) !== "true")
+      await evolutionButton.click();
+    // The app starts collapsed; expand so the padded full-view alignment is asserted.
+    const collapseButton = page.getByRole("button", {
+      name: "Collapse unchanged lines",
+    });
+    if ((await collapseButton.getAttribute("aria-pressed")) === "true")
+      await collapseButton.click();
     const previous = page.getByRole("region", {
       name: "Previous commit",
       exact: true,
@@ -200,6 +219,15 @@ test(
     await expect(nextGutter.nth(6)).toHaveText("7");
     await expect(prevGutter.nth(7)).toHaveText("");
     await expect(prevGutter.nth(8)).toHaveText("");
+    // Padding cells get a distinct background so the missing lines are visible.
+    await expect(prevGutter.nth(7)).toHaveCSS(
+      "background-color",
+      "rgb(35, 42, 36)",
+    );
+    await expect(currGutter.nth(7)).toHaveCSS(
+      "background-color",
+      "rgba(0, 0, 0, 0)",
+    );
     await expect(currGutter.nth(7)).toHaveText("+8");
     await expect(currGutter.nth(8)).toHaveText("+9");
     await expect(nextGutter.nth(7)).toHaveText("8");
@@ -314,7 +342,7 @@ test(
     await slider.fill("1");
     await expect(current.locator("code")).toContainText("if (!items.length)");
 
-    await page.setViewportSize({ width: 760, height: 680 });
+    await page.setViewportSize({ width: 760, height: 520 });
     const codeHeight = await current
       .locator(".code-scroll")
       .evaluate((element) => element.clientHeight);
@@ -396,6 +424,43 @@ test(
     await expect(page.locator(".repo-info strong")).toHaveText(
       "example-repository",
     );
+
+    // Recent files persist and reopen the last-explored file for the repo.
+    const recentFileButton = page
+      .locator(".recent-section .recent-item")
+      .filter({ hasText: "calculate-total.ts" });
+    await expect(recentFileButton).toHaveCount(1);
+    await recentFileButton.click();
+    await expect(current.locator("code")).toContainText("Math.round");
+    await expect(page.locator(".file-breadcrumb strong")).toHaveText(
+      "calculate-total.ts",
+    );
+    await expect(recentFileButton).toHaveClass(/selected/);
+
+    // When the current revision is binary, the readable panels are still padded
+    // so they stay aligned with each other.
+    await page.getByRole("textbox", { name: "Find a file" }).fill("flux");
+    await page.locator(".file-item").filter({ hasText: "flux.txt" }).click();
+    const fluxEvolutionButton = page.getByRole("button", {
+      name: "Evolution",
+      exact: true,
+    });
+    if ((await fluxEvolutionButton.getAttribute("aria-pressed")) !== "true")
+      await fluxEvolutionButton.click();
+    await slider.fill("1");
+    await expect(current).toContainText("Binary or non-UTF-8 file");
+    const fluxPrev = previous.locator(".line-gutter > div");
+    const fluxNext = next.locator(".line-gutter > div");
+    await expect(fluxPrev).toHaveCount(4);
+    await expect(fluxNext).toHaveCount(4);
+    await expect(fluxPrev.nth(0)).toHaveText("");
+    await expect(fluxNext.nth(0)).toHaveText("+1");
+    await expect(fluxPrev.nth(1)).toHaveText("1");
+    await expect(fluxNext.nth(1)).toHaveText("2");
+    await expect(fluxPrev.nth(2)).toHaveText("2");
+    await expect(fluxNext.nth(2)).toHaveText("3");
+    await expect(fluxPrev.nth(3)).toHaveText("");
+    await expect(fluxNext.nth(3)).toHaveText("+4");
 
     assert.deepEqual(pageErrors, []);
     assert.equal(await git("status", "--porcelain=v1"), statusBefore);

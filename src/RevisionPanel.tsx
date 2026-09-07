@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef } from "react";
 import type { UIEventHandler } from "react";
 import {
   ArrowLeft,
@@ -27,6 +27,9 @@ interface Props {
   lines: DisplayLine[];
   showChanges: boolean;
   collapsed: boolean;
+  collapseChanged: ReadonlySet<number>;
+  expanded: ReadonlySet<number>;
+  onExpand: (from: number) => void;
   jumpLine: number | null;
   jumpStamp: number;
   onScroll: UIEventHandler<HTMLDivElement>;
@@ -38,6 +41,9 @@ const Code = memo(function Code({
   position,
   showChanges,
   collapsed,
+  collapseChanged,
+  expanded,
+  onExpand,
   jumpLine,
   jumpStamp,
 }: {
@@ -46,20 +52,16 @@ const Code = memo(function Code({
   position: Props["position"];
   showChanges: boolean;
   collapsed: boolean;
+  collapseChanged: ReadonlySet<number>;
+  expanded: ReadonlySet<number>;
+  onExpand: (from: number) => void;
   jumpLine: number | null;
   jumpStamp: number;
 }) {
   const limited = lines.length > MAX_LINES;
   const displayLines = lines.slice(0, MAX_LINES);
   const kind = position === "previous" ? "removed" : "added";
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(
-    new Set<number>(),
-  );
   const gridRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setExpanded(new Set<number>());
-  }, [lines, collapsed]);
 
   useEffect(() => {
     if (jumpLine == null || !gridRef.current) return;
@@ -73,13 +75,10 @@ const Code = memo(function Code({
       targetRect.top - containerRect.top - container.clientHeight * 0.25;
   }, [jumpLine, jumpStamp]);
 
-  function expandGap(from: number) {
-    setExpanded((previous) => new Set(previous).add(from));
-  }
-
   const changedAt = (i: number) => showChanges && displayLines[i].changed;
+  const padAt = (i: number) => displayLines[i].number == null;
   const fullLineClass = (i: number) =>
-    `${changedAt(i) ? kind : ""} ${jumpLine === i ? "jumped" : ""}`;
+    `${changedAt(i) ? kind : ""} ${padAt(i) ? "pad" : ""} ${jumpLine === i ? "jumped" : ""}`;
 
   if (!collapsed) {
     const html = highlight(
@@ -123,7 +122,7 @@ const Code = memo(function Code({
   displayLines.forEach((line, i) => {
     if (line.changed) changedSet.add(i);
   });
-  if (changedSet.size === 0) {
+  if (collapseChanged.size === 0) {
     return (
       <div className="no-changes-note">No changed lines on this side.</div>
     );
@@ -131,12 +130,12 @@ const Code = memo(function Code({
 
   const rows = buildRows(
     displayLines.map((line) => line.text),
-    changedSet,
+    collapseChanged,
     true,
     expanded,
   );
   const collapsedLineClass = (i: number) =>
-    `${changedSet.has(i) ? kind : ""} ${jumpLine === i ? "jumped" : ""}`;
+    `${changedSet.has(i) ? kind : ""} ${displayLines[i].number == null ? "pad" : ""} ${jumpLine === i ? "jumped" : ""}`;
   return (
     <>
       {limited && (
@@ -190,7 +189,7 @@ const Code = memo(function Code({
                     type="button"
                     className="gap-marker"
                     key={`gap-${row.from}`}
-                    onClick={() => expandGap(row.from)}
+                    onClick={() => onExpand(row.from)}
                     title={`Show ${row.count} unchanged lines`}
                   >
                     <span>
@@ -227,6 +226,9 @@ export default function RevisionPanel({
   lines,
   showChanges,
   collapsed,
+  collapseChanged,
+  expanded,
+  onExpand,
   jumpLine,
   jumpStamp,
   onScroll,
@@ -352,6 +354,9 @@ export default function RevisionPanel({
             position={position}
             showChanges={showChanges}
             collapsed={collapsed}
+            collapseChanged={collapseChanged}
+            expanded={expanded}
+            onExpand={onExpand}
             jumpLine={jumpLine}
             jumpStamp={jumpStamp}
           />

@@ -40,6 +40,13 @@ export interface RecentRepository {
   branch: string;
 }
 
+export interface RecentFile {
+  repoPath: string;
+  repoName: string;
+  branch: string;
+  file: string;
+}
+
 declare global {
   interface Window {
     gitvolution?: GitvolutionAPI;

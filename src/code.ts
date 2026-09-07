@@ -267,9 +267,54 @@ export function alignPanels(
   const cLines = splitLines(c);
   const nLines = splitLines(n);
   if (c == null) {
-    const column = (arr: string[]) =>
-      arr.map((text, i) => ({ text, number: i + 1, changed: false }));
-    return { columns: [column(pLines), [], column(nLines)], limited: false };
+    const pn = toAlignment(p, n);
+    if (pn.limited) {
+      const total = Math.max(pLines.length, nLines.length);
+      const column = (arr: string[]) =>
+        Array.from({ length: total }, (_, i) =>
+          i < arr.length
+            ? { text: arr[i], number: i + 1, changed: false }
+            : { text: "", number: null, changed: false },
+        );
+      return {
+        columns: [column(pLines), column(cLines), column(nLines)],
+        limited: true,
+      };
+    }
+    const column = (
+      lines: string[],
+      pick: (row: PairRow) => number | null,
+      isChanged: (row: PairRow) => boolean,
+    ) =>
+      pn.rows.map((row) => {
+        const index = pick(row);
+        if (index == null) return { text: "", number: null, changed: false };
+        return {
+          text: lines[index] ?? "",
+          number: index + 1,
+          changed: isChanged(row),
+        };
+      });
+    return {
+      columns: [
+        column(
+          pLines,
+          (row) => row.a,
+          (row) => row.b == null && row.a != null,
+        ),
+        Array.from({ length: pn.rows.length }, () => ({
+          text: "",
+          number: null,
+          changed: false,
+        })),
+        column(
+          nLines,
+          (row) => row.b,
+          (row) => row.a == null && row.b != null,
+        ),
+      ],
+      limited: false,
+    };
   }
   const { rows, limited } = alignThree(p, c, n);
   if (limited) {
@@ -319,6 +364,52 @@ export function alignPanels(
     ],
     limited: false,
   };
+}
+
+export function alignPair(
+  p: string | null,
+  c: string | null,
+): { columns: [DisplayLine[], DisplayLine[]]; limited: boolean } {
+  const pLines = splitLines(p);
+  const cLines = splitLines(c);
+  const pc = toAlignment(p, c);
+  if (pc.limited) {
+    const total = Math.max(pLines.length, cLines.length);
+    const fill = (arr: string[]) =>
+      Array.from({ length: total }, (_, i) =>
+        i < arr.length
+          ? { text: arr[i], number: i + 1, changed: false }
+          : { text: "", number: null, changed: false },
+      );
+    return { columns: [fill(pLines), fill(cLines)], limited: true };
+  }
+  const col0 = pc.rows.map((row) => {
+    const index = row.a;
+    if (index == null) return { text: "", number: null, changed: false };
+    return {
+      text: pLines[index] ?? "",
+      number: index + 1,
+      changed: row.b == null,
+    };
+  });
+  const col1 = pc.rows.map((row) => {
+    const index = row.b;
+    if (index == null) return { text: "", number: null, changed: false };
+    return {
+      text: cLines[index] ?? "",
+      number: index + 1,
+      changed: row.a == null,
+    };
+  });
+  return { columns: [col0, col1], limited: false };
+}
+
+export function unionChangedRows(columns: DisplayLine[][]): ReadonlySet<number> {
+  const rows = new Set<number>();
+  for (const column of columns)
+    for (let i = 0; i < column.length; i++)
+      if (column[i].changed) rows.add(i);
+  return rows;
 }
 
 export function formatDate(date: string, long = false) {
