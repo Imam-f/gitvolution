@@ -1,0 +1,59 @@
+{
+  "name": "gitvolution",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A three-panel time machine for your Git files.",
+  "type": "module",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:127.0.0.1:5173 && electron . --dev\"",
+    "build": "tsc -b && vite build",
+    "start": "npm run build && electron .",
+    "test": "node --test tests/git-service.test.mjs",
+    "test:e2e": "npm run build && node --test tests/electron.test.mjs",
+    "package": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "diff": "^8.0.2",
+    "highlight.js": "^11.11.1",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "concurrently": "^9.2.1",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.0.12",
+    "playwright": "^1.58.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.2",
+    "wait-on": "^8.0.5"
+  },
+  "build": {
+    "appId": "dev.gitvolution.app",
+    "productName": "Gitvolution",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Development"
+    }
+  }
+}
