@@ -186,9 +186,27 @@ test(
 
     const slider = page.getByRole("slider", { name: "Commit timeline" });
     await slider.fill("1");
-    await expect(previous.locator("code")).toHaveText(first.trimEnd());
     await expect(current.locator("code")).toHaveText(second.trimEnd());
     await expect(next.locator("code")).toHaveText(second.trimEnd());
+    // The three panels are padded so every unchanged line shares a row.
+    const prevGutter = previous.locator(".line-gutter > div");
+    const currGutter = current.locator(".line-gutter > div");
+    const nextGutter = next.locator(".line-gutter > div");
+    await expect(prevGutter).toHaveCount(13);
+    await expect(currGutter).toHaveCount(13);
+    await expect(nextGutter).toHaveCount(13);
+    await expect(prevGutter.nth(6)).toHaveText("7");
+    await expect(currGutter.nth(6)).toHaveText("7");
+    await expect(nextGutter.nth(6)).toHaveText("7");
+    await expect(prevGutter.nth(7)).toHaveText("");
+    await expect(prevGutter.nth(8)).toHaveText("");
+    await expect(currGutter.nth(7)).toHaveText("+8");
+    await expect(currGutter.nth(8)).toHaveText("+9");
+    await expect(nextGutter.nth(7)).toHaveText("8");
+    await expect(nextGutter.nth(8)).toHaveText("9");
+    await expect(prevGutter.nth(9)).toHaveText("8");
+    await expect(currGutter.nth(9)).toHaveText("10");
+    await expect(nextGutter.nth(9)).toHaveText("10");
     await expect(current.locator(".revision-path")).toHaveText("src/total.ts");
     await expect(next.locator(".revision-path")).toHaveText(
       "src/calculate-total.ts",
@@ -210,11 +228,11 @@ test(
     await expect(current.locator(".gap-marker").first()).toContainText(
       "4 unchanged lines",
     );
-    await expect(page.locator(".jump-count")).toHaveText("2");
+    await expect(page.locator(".jump-count")).toHaveText("1");
 
-    // Jump walks through the changed lines and scrolls the current revision to each.
+    // Jump walks between changes (hunks), not individual lines.
     await page.getByRole("button", { name: "Jump to next change" }).click();
-    await expect(page.locator(".jump-count")).toHaveText("1 / 2");
+    await expect(page.locator(".jump-count")).toHaveText("1 / 1");
     await expect(current.locator(".code-line.jumped")).toHaveCount(1);
     const jumpedInView = await current
       .locator(".code-line.jumped")
@@ -229,9 +247,9 @@ test(
       });
     assert.ok(jumpedInView, "the jumped change should be scrolled into view");
     await page.keyboard.press("n");
-    await expect(page.locator(".jump-count")).toHaveText("2 / 2");
+    await expect(page.locator(".jump-count")).toHaveText("1 / 1");
     await page.keyboard.press("p");
-    await expect(page.locator(".jump-count")).toHaveText("1 / 2");
+    await expect(page.locator(".jump-count")).toHaveText("1 / 1");
 
     // Hidden gaps expand on click to reveal their lines again.
     await current.locator(".gap-marker").first().click();
@@ -241,7 +259,7 @@ test(
       .getByRole("button", { name: "Collapse unchanged lines" })
       .click();
     await expect(current.locator(".code-line")).toHaveCount(0);
-    await expect(page.locator(".jump-count")).toHaveText("2");
+    await expect(page.locator(".jump-count")).toHaveText("1");
 
     // A button retains focus after a click; arrows must still navigate the timeline.
     await page
@@ -252,6 +270,13 @@ test(
     await page.keyboard.press("ArrowRight");
     await expect(slider).toHaveValue("1");
     await page.getByRole("button", { name: "Latest commit" }).click();
+    await expect(slider).toHaveValue("3");
+    // The latest commit has non-adjacent changes, so jump hops between hunks.
+    await expect(page.locator(".jump-count")).toHaveText("2");
+    await page.getByRole("button", { name: "Jump to next change" }).click();
+    await expect(page.locator(".jump-count")).toHaveText("1 / 2");
+    await page.getByRole("button", { name: "Jump to next change" }).click();
+    await expect(page.locator(".jump-count")).toHaveText("2 / 2");
     await page.getByRole("button", { name: "Play timeline" }).click();
     await expect(slider).toHaveValue("0");
     await expect(slider).toHaveValue("1", { timeout: 10_000 });
@@ -289,7 +314,7 @@ test(
     await slider.fill("1");
     await expect(current.locator("code")).toContainText("if (!items.length)");
 
-    await page.setViewportSize({ width: 760, height: 600 });
+    await page.setViewportSize({ width: 760, height: 680 });
     const codeHeight = await current
       .locator(".code-scroll")
       .evaluate((element) => element.clientHeight);
@@ -309,7 +334,9 @@ test(
       .toBe(30);
     await expect
       .poll(() =>
-        next.locator(".code-scroll").evaluate((element) => Math.round(element.scrollTop)),
+        next
+          .locator(".code-scroll")
+          .evaluate((element) => Math.round(element.scrollTop)),
       )
       .toBe(30);
     await page.getByRole("button", { name: "Sync scroll" }).click();
@@ -357,6 +384,19 @@ test(
     });
     await page.getByRole("button", { name: "Switch repository" }).click();
     await expect(current.locator("code")).toHaveText(second.trimEnd());
+
+    // Recent repositories persist across reloads and reopen in one click.
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: /Good code takes time/ }),
+    ).toBeVisible();
+    const recentButton = page.locator(".welcome-recent .recent-item").first();
+    await expect(recentButton).toContainText("example-repository");
+    await recentButton.click();
+    await expect(page.locator(".repo-info strong")).toHaveText(
+      "example-repository",
+    );
+
     assert.deepEqual(pageErrors, []);
     assert.equal(await git("status", "--porcelain=v1"), statusBefore);
   },

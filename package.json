@@ -10,7 +10,7 @@
     "build": "tsc -b && vite build",
     "start": "npm run build && electron .",
     "test": "node --test tests/git-service.test.mjs",
-    "test:e2e": "npm run build && node --test tests/electron.test.mjs",
+    "test:e2e": "npm run build && node --test tests/electron.test.mjs tests/recent.test.mjs",
     "package": "npm run build && electron-builder"
   },
   "dependencies": {

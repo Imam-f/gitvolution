@@ -30,19 +30,24 @@ Restart the development command after changing files in `electron/`.
 3. Drag the timeline to a commit. The center shows that revision; the left and right show the adjacent commits that changed this file, not unrelated repository commits.
 4. Use the previous/next buttons, jump to the first/latest revision, or press Play to step through the history automatically.
 
-The viewer starts at the latest file revision. History follows renames, so each panel shows the filename as it existed in that commit. Removed lines are highlighted on the left, additions to the selected revision in the center, and additions in the following revision on the right. **Changes** toggles highlighting; **Sync scroll** links horizontal and vertical scrolling.
+The viewer starts at the latest file revision. History follows renames, so each panel shows the filename as it existed in that commit. Removed lines are highlighted on the left, additions to the selected revision in the center, and additions in the following revision on the right. The three panels are padded so unchanged lines stay on the same row across all of them, and scroll together. **Changes** toggles highlighting; **Sync scroll** links horizontal and vertical scrolling.
+
+To focus on what actually changed, toggle **Collapse**. Unchanged code folds away behind `··· n unchanged lines hidden` markers, leaving only the changed lines and a little context around each. Click a marker to reveal that block again. Use the **jump** controls to hop between change hunks in the selected commit; the current one is highlighted and scrolled into view.
+
+Recently opened repositories are remembered and listed in the sidebar and welcome screen, so you can reopen one with a single click.
 
 | Shortcut         | Action                      |
 | ---------------- | --------------------------- |
 | `Ctrl/Cmd + O`   | Open or switch repository   |
 | `Ctrl/Cmd + P`   | Focus file search           |
 | `Left` / `Right` | Previous / next file commit |
+| `N` / `P`        | Next / previous change      |
 
 The range slider also supports its native arrow keys. The explorer can be collapsed to give the code more room.
 
 ## Behavior
 
-- Everything stays local. No accounts, uploads, analytics, or network services.
+- Everything stays local. No accounts, uploads, analytics, or network services. The recent-repository list is stored in the app's own local storage.
 - Only committed content is shown, never uncommitted working-tree edits. A staged file without commits shows an empty history.
 - The repository is a snapshot of the branch and HEAD when opened. Reopen it after external commits, branch switches, or changes to the tracked file list.
 - Only files currently in the index are selectable. History can show a selected file's earlier deletion and re-addition, but the explorer does not list files deleted from the current index.

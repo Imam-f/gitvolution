@@ -14,6 +14,7 @@ import {
   languageFor,
   MAX_LINES,
   normalize,
+  type DisplayLine,
 } from "./code";
 import type { Commit, Revision } from "./types";
 
@@ -23,7 +24,7 @@ interface Props {
   revision?: Revision;
   loading: boolean;
   hasFile: boolean;
-  marks: number[];
+  lines: DisplayLine[];
   showChanges: boolean;
   collapsed: boolean;
   jumpLine: number | null;
@@ -32,28 +33,24 @@ interface Props {
 }
 
 const Code = memo(function Code({
-  content,
+  lines,
   path,
-  marks,
   position,
   showChanges,
   collapsed,
   jumpLine,
   jumpStamp,
 }: {
-  content: string;
+  lines: DisplayLine[];
   path: string;
-  marks: number[];
   position: Props["position"];
   showChanges: boolean;
   collapsed: boolean;
   jumpLine: number | null;
   jumpStamp: number;
 }) {
-  const allLines = normalize(content).replace(/\n$/, "").split("\n");
-  const limited = allLines.length > MAX_LINES;
-  const lines = allLines.slice(0, MAX_LINES);
-  const changed = new Set<number>(showChanges || collapsed ? marks : []);
+  const limited = lines.length > MAX_LINES;
+  const displayLines = lines.slice(0, MAX_LINES);
   const kind = position === "previous" ? "removed" : "added";
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(
     new Set<number>(),
@@ -62,7 +59,7 @@ const Code = memo(function Code({
 
   useEffect(() => {
     setExpanded(new Set<number>());
-  }, [content, collapsed]);
+  }, [lines, collapsed]);
 
   useEffect(() => {
     if (jumpLine == null || !gridRef.current) return;
@@ -80,11 +77,15 @@ const Code = memo(function Code({
     setExpanded((previous) => new Set(previous).add(from));
   }
 
-  const lineClass = (i: number) =>
-    `${changed.has(i) ? kind : ""} ${jumpLine === i ? "jumped" : ""}`;
+  const changedAt = (i: number) => showChanges && displayLines[i].changed;
+  const fullLineClass = (i: number) =>
+    `${changedAt(i) ? kind : ""} ${jumpLine === i ? "jumped" : ""}`;
 
   if (!collapsed) {
-    const html = highlight(lines.join("\n"), path);
+    const html = highlight(
+      displayLines.map((line) => line.text).join("\n"),
+      path,
+    );
     return (
       <>
         {limited && (
@@ -94,19 +95,19 @@ const Code = memo(function Code({
         )}
         <div className="source-grid" ref={gridRef}>
           <div className="line-gutter" aria-hidden="true">
-            {lines.map((_, i) => (
-              <div data-line={i} className={lineClass(i)} key={i}>
+            {displayLines.map((line, i) => (
+              <div data-line={i} className={fullLineClass(i)} key={i}>
                 <span className="change-symbol">
-                  {changed.has(i) ? (kind === "added" ? "+" : "-") : ""}
+                  {changedAt(i) ? (kind === "added" ? "+" : "-") : ""}
                 </span>
-                {i + 1}
+                {line.number ?? ""}
               </div>
             ))}
           </div>
           <div className="source-body">
             <div className="line-highlights" aria-hidden="true">
-              {lines.map((_, i) => (
-                <div className={lineClass(i)} key={i} />
+              {displayLines.map((_, i) => (
+                <div className={fullLineClass(i)} key={i} />
               ))}
             </div>
             <pre>
@@ -118,13 +119,24 @@ const Code = memo(function Code({
     );
   }
 
-  if (changed.size === 0) {
+  const changedSet = new Set<number>();
+  displayLines.forEach((line, i) => {
+    if (line.changed) changedSet.add(i);
+  });
+  if (changedSet.size === 0) {
     return (
       <div className="no-changes-note">No changed lines on this side.</div>
     );
   }
 
-  const rows = buildRows(lines, changed, true, expanded);
+  const rows = buildRows(
+    displayLines.map((line) => line.text),
+    changedSet,
+    true,
+    expanded,
+  );
+  const collapsedLineClass = (i: number) =>
+    `${changedSet.has(i) ? kind : ""} ${jumpLine === i ? "jumped" : ""}`;
   return (
     <>
       {limited && (
@@ -142,13 +154,17 @@ const Code = memo(function Code({
             ) : (
               <div
                 data-line={row.line}
-                className={lineClass(row.line)}
+                className={collapsedLineClass(row.line)}
                 key={`line-${row.line}`}
               >
                 <span className="change-symbol">
-                  {changed.has(row.line) ? (kind === "added" ? "+" : "-") : ""}
+                  {changedSet.has(row.line)
+                    ? kind === "added"
+                      ? "+"
+                      : "-"
+                    : ""}
                 </span>
-                {row.line + 1}
+                {displayLines[row.line].number ?? ""}
               </div>
             ),
           )}
@@ -159,7 +175,10 @@ const Code = memo(function Code({
               row.kind === "gap" ? (
                 <div className="gap-space" key={`gap-${row.from}`} />
               ) : (
-                <div className={lineClass(row.line)} key={`line-${row.line}`} />
+                <div
+                  className={collapsedLineClass(row.line)}
+                  key={`line-${row.line}`}
+                />
               ),
             )}
           </div>
@@ -205,7 +224,7 @@ export default function RevisionPanel({
   revision,
   loading,
   hasFile,
-  marks,
+  lines,
   showChanges,
   collapsed,
   jumpLine,
@@ -328,9 +347,8 @@ export default function RevisionPanel({
           </div>
         ) : revision?.content ? (
           <Code
-            content={revision.content}
+            lines={lines}
             path={commit!.path}
-            marks={marks}
             position={position}
             showChanges={showChanges}
             collapsed={collapsed}

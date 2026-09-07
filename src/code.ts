@@ -163,6 +163,164 @@ export function buildRows(
   return rows;
 }
 
+export interface DisplayLine {
+  text: string;
+  number: number | null;
+  changed: boolean;
+}
+
+interface PairRow {
+  a: number | null;
+  b: number | null;
+}
+
+export interface AlignedRow {
+  p: number | null;
+  c: number | null;
+  n: number | null;
+}
+
+function splitLines(content: string | null) {
+  if (!content) return [];
+  return normalize(content).replace(/\n$/, "").split("\n");
+}
+
+function toAlignment(
+  before: string | null,
+  after: string | null,
+): { rows: PairRow[]; limited: boolean } {
+  if (before == null && after == null) return { rows: [], limited: false };
+  if (before == null) {
+    return {
+      rows: splitLines(after).map((_, i) => ({ a: null, b: i })),
+      limited: false,
+    };
+  }
+  if (after == null) {
+    return {
+      rows: splitLines(before).map((_, i) => ({ a: i, b: null })),
+      limited: false,
+    };
+  }
+  const changes = diffLines(normalize(before), normalize(after), {
+    timeout: 60,
+    maxEditLength: 3000,
+  });
+  if (!changes) return { rows: [], limited: true };
+  const rows: PairRow[] = [];
+  let a = 0;
+  let b = 0;
+  for (const change of changes) {
+    const count = change.count ?? 0;
+    if (change.added) {
+      for (let k = 0; k < count; k++) rows.push({ a: null, b: b++ });
+    } else if (change.removed) {
+      for (let k = 0; k < count; k++) rows.push({ a: a++, b: null });
+    } else {
+      for (let k = 0; k < count; k++) rows.push({ a: a++, b: b++ });
+    }
+  }
+  return { rows, limited: false };
+}
+
+function alignThree(
+  p: string | null,
+  c: string,
+  n: string | null,
+): { rows: AlignedRow[]; limited: boolean } {
+  const pc = toAlignment(p, c);
+  const cn = toAlignment(c, n);
+  if (pc.limited || cn.limited) return { rows: [], limited: true };
+  const rows: AlignedRow[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < pc.rows.length || j < cn.rows.length) {
+    const pcr = i < pc.rows.length ? pc.rows[i] : null;
+    const cnr = j < cn.rows.length ? cn.rows[j] : null;
+    if (pcr && pcr.b == null) {
+      rows.push({ p: pcr.a, c: null, n: null });
+      i++;
+    } else if (cnr && cnr.a == null) {
+      rows.push({ p: null, c: null, n: cnr.b });
+      j++;
+    } else if (pcr && cnr) {
+      rows.push({ p: pcr.a, c: pcr.b, n: cnr.b });
+      i++;
+      j++;
+    } else if (pcr) {
+      rows.push({ p: pcr.a, c: null, n: null });
+      i++;
+    } else if (cnr) {
+      rows.push({ p: null, c: null, n: cnr.b });
+      j++;
+    }
+  }
+  return { rows, limited: false };
+}
+
+export function alignPanels(
+  p: string | null,
+  c: string | null,
+  n: string | null,
+): { columns: DisplayLine[][]; limited: boolean } {
+  const pLines = splitLines(p);
+  const cLines = splitLines(c);
+  const nLines = splitLines(n);
+  if (c == null) {
+    const column = (arr: string[]) =>
+      arr.map((text, i) => ({ text, number: i + 1, changed: false }));
+    return { columns: [column(pLines), [], column(nLines)], limited: false };
+  }
+  const { rows, limited } = alignThree(p, c, n);
+  if (limited) {
+    const total = Math.max(pLines.length, cLines.length, nLines.length);
+    const column = (arr: string[]) =>
+      Array.from({ length: total }, (_, i) =>
+        i < arr.length
+          ? { text: arr[i], number: i + 1, changed: false }
+          : { text: "", number: null, changed: false },
+      );
+    return {
+      columns: [column(pLines), column(cLines), column(nLines)],
+      limited: true,
+    };
+  }
+  const column = (
+    lines: string[],
+    pick: (row: AlignedRow) => number | null,
+    isChanged: (row: AlignedRow) => boolean,
+  ) =>
+    rows.map((row) => {
+      const index = pick(row);
+      if (index == null) return { text: "", number: null, changed: false };
+      return {
+        text: lines[index] ?? "",
+        number: index + 1,
+        changed: isChanged(row),
+      };
+    });
+  return {
+    columns: [
+      column(
+        pLines,
+        (row) => row.p,
+        (row) => row.c == null && row.p != null,
+      ),
+      column(
+        cLines,
+        (row) => row.c,
+        (row) => row.p == null && row.c != null,
+      ),
+      column(
+        nLines,
+        (row) => row.n,
+        (row) => row.c == null && row.n != null,
+      ),
+    ],
+    limited: false,
+  };
+}
+
 export function formatDate(date: string, long = false) {
   return new Intl.DateTimeFormat(undefined, {
     month: long ? "long" : "short",

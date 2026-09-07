@@ -28,9 +28,16 @@ export interface Revision {
 
 export interface GitvolutionAPI {
   chooseRepository(): Promise<Repository | null>;
+  openPath(path: string): Promise<Repository>;
   chooseFile(id: string): Promise<string | null>;
   getHistory(id: string, file: string): Promise<Commit[]>;
   getRevision(id: string, hash: string, file: string): Promise<Revision>;
+}
+
+export interface RecentRepository {
+  path: string;
+  name: string;
+  branch: string;
 }
 
 declare global {

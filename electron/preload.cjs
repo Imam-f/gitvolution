@@ -8,6 +8,7 @@ async function invoke(channel, ...args) {
 
 contextBridge.exposeInMainWorld("gitvolution", {
   chooseRepository: () => invoke("repository:choose"),
+  openPath: (path) => invoke("repository:openPath", path),
   chooseFile: (id) => invoke("file:choose", id),
   getHistory: (id, file) => invoke("file:history", id, file),
   getRevision: (id, hash, file) => invoke("file:revision", id, hash, file),

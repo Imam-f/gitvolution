@@ -73,6 +73,21 @@ handle("repository:choose", async () => {
   }
 });
 
+handle("repository:openPath", async (path) => {
+  if (typeof path !== "string" || !path || path.includes("\0")) {
+    throw new Error("Repository path must be a non-empty path.");
+  }
+  const info = await inspectRepository(path);
+  repository = {
+    ...info,
+    id: randomUUID(),
+    revisions: new Set(),
+    tracked: new Set(info.files),
+  };
+  const { revisions, tracked, ...publicInfo } = repository;
+  return publicInfo;
+});
+
 handle("file:choose", async (id) => {
   const repo = currentRepository(id);
   const result = await dialog.showOpenDialog(window, {
