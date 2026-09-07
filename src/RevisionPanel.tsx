@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef } from "react";
-import type { UIEventHandler } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import type { UIEvent, UIEventHandler } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +14,7 @@ import {
   languageFor,
   MAX_LINES,
   normalize,
+  type CodeRow,
   type DisplayLine,
 } from "./code";
 import type { Commit, Revision } from "./types";
@@ -217,6 +218,99 @@ const Code = memo(function Code({
   );
 });
 
+interface Tick {
+  changed: boolean;
+  pad: boolean;
+}
+
+function Minimap({
+  lines,
+  rows,
+  showChanges,
+  kind,
+  scrollTop,
+  height,
+  lineHeight,
+  onSeek,
+}: {
+  lines: DisplayLine[];
+  rows: CodeRow[] | null;
+  showChanges: boolean;
+  kind: "added" | "removed";
+  scrollTop: number;
+  height: number;
+  lineHeight: number;
+  onSeek: (row: number) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const ticks: Tick[] = rows
+    ? rows.map((row) =>
+        row.kind === "gap"
+          ? { changed: false, pad: true }
+          : {
+              changed: Boolean(lines[row.line]?.changed),
+              pad: lines[row.line]?.number == null,
+            },
+      )
+    : lines.map((line) => ({
+        changed: line.changed,
+        pad: line.number == null,
+      }));
+  const total = ticks.length;
+  const spacing = total ? height / total : 0;
+  const scale = lineHeight ? spacing / lineHeight : 0;
+  const viewportTop = scrollTop * scale;
+  const viewportHeight = height * scale;
+
+  const seek = (clientY: number) => {
+    if (!ref.current || !spacing) return;
+    const top = ref.current.getBoundingClientRect().top;
+    onSeek(Math.floor((clientY - top) / spacing));
+  };
+
+  return (
+    <div
+      className="minimap"
+      ref={ref}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        seek(event.clientY);
+      }}
+      onPointerMove={(event) => {
+        if (event.buttons) seek(event.clientY);
+      }}
+      role="slider"
+      aria-label="Scroll minimap"
+      aria-valuemin={0}
+      aria-valuenow={Math.round(scrollTop)}
+    >
+      <div className="minimap-lines">
+        {ticks.map((tick, i) => {
+          const cls = !showChanges
+            ? ""
+            : tick.changed
+              ? kind
+              : tick.pad
+                ? "pad"
+                : "";
+          return (
+            <div
+              key={i}
+              className={`minimap-tick ${cls}`}
+              style={{ top: i * spacing, height: Math.max(1, spacing) }}
+            />
+          );
+        })}
+      </div>
+      <div
+        className="minimap-viewport"
+        style={{ top: viewportTop, height: viewportHeight }}
+      />
+    </div>
+  );
+}
+
 export default function RevisionPanel({
   position,
   commit,
@@ -234,11 +328,56 @@ export default function RevisionPanel({
   onScroll,
 }: Props) {
   const current = position === "current";
+  const [scrollTop, setScrollTop] = useState(0);
+  const [dims, setDims] = useState({ height: 0, line: 22 });
+  const codeScrollRef = useRef<HTMLDivElement>(null);
+  const minimapRows = useMemo(
+    () =>
+      collapsed
+        ? buildRows(
+            lines.map((line) => line.text),
+            collapseChanged,
+            true,
+            expanded,
+          )
+        : null,
+    [lines, collapsed, collapseChanged, expanded],
+  );
   const title = current
     ? "Current commit"
     : position === "previous"
       ? "Previous commit"
       : "Next commit";
+
+  useEffect(() => {
+    const el = codeScrollRef.current;
+    if (!el) return;
+    const update = () => {
+      const lineEl = el.querySelector<HTMLElement>(".line-gutter > div");
+      setDims({
+        height: el.clientHeight,
+        line: lineEl?.offsetHeight || 22,
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [revision?.content, lines]);
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    onScroll(event);
+    setScrollTop(event.currentTarget.scrollTop);
+  };
+
+  const seekToLine = (row: number) => {
+    const el = codeScrollRef.current;
+    if (!el) return;
+    const max = (minimapRows ?? lines).length - 1;
+    const clamped = Math.max(0, Math.min(max, row));
+    el.scrollTop = clamped * dims.line - el.clientHeight * 0.25;
+  };
+
   let emptyTitle = "A little context goes a long way.";
   let emptyDescription = "Choose a file to explore its history.";
   if (hasFile && !commit) {
@@ -335,37 +474,56 @@ export default function RevisionPanel({
           <span>{commit.path}</span>
         </div>
       )}
-      <div
-        className="code-scroll"
-        onScroll={onScroll}
-        data-position={position}
-        tabIndex={0}
-        aria-label={`${title} source code`}
-      >
-        {loading ? (
-          <div className="panel-empty">
-            <LoaderCircle className="spin" size={23} />
-            <h4>Reading this moment...</h4>
-          </div>
-        ) : revision?.content ? (
-          <Code
+      <div className="code-area">
+        <div
+          className="code-scroll"
+          ref={codeScrollRef}
+          onScroll={handleScroll}
+          data-position={position}
+          tabIndex={0}
+          aria-label={`${title} source code`}
+        >
+          {loading ? (
+            <div className="panel-empty">
+              <LoaderCircle className="spin" size={23} />
+              <h4>Reading this moment...</h4>
+            </div>
+          ) : revision?.content ? (
+            <div className="code-content">
+              <div className="code-main">
+                <Code
+                  lines={lines}
+                  path={commit!.path}
+                  position={position}
+                  showChanges={showChanges}
+                  collapsed={collapsed}
+                  collapseChanged={collapseChanged}
+                  expanded={expanded}
+                  onExpand={onExpand}
+                  jumpLine={jumpLine}
+                  jumpStamp={jumpStamp}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="panel-empty">
+              <GitCommitHorizontal size={30} strokeWidth={1.2} />
+              <h4>{emptyTitle}</h4>
+              <p>{emptyDescription}</p>
+            </div>
+          )}
+        </div>
+        {revision?.content && (
+          <Minimap
             lines={lines}
-            path={commit!.path}
-            position={position}
+            rows={minimapRows}
             showChanges={showChanges}
-            collapsed={collapsed}
-            collapseChanged={collapseChanged}
-            expanded={expanded}
-            onExpand={onExpand}
-            jumpLine={jumpLine}
-            jumpStamp={jumpStamp}
+            kind={position === "previous" ? "removed" : "added"}
+            scrollTop={scrollTop}
+            height={dims.height}
+            lineHeight={dims.line}
+            onSeek={seekToLine}
           />
-        ) : (
-          <div className="panel-empty">
-            <GitCommitHorizontal size={30} strokeWidth={1.2} />
-            <h4>{emptyTitle}</h4>
-            <p>{emptyDescription}</p>
-          </div>
         )}
       </div>
       <div className="panel-footer">

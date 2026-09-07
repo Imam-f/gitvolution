@@ -1133,13 +1133,22 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.code-scroll {
-  overflow: auto;
+.code-area {
+  position: relative;
   flex: 1;
   min-height: 0;
+}
+.code-scroll {
+  overflow: auto;
+  height: 100%;
   position: relative;
   padding: 14px 0;
   background: #151515;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.code-scroll::-webkit-scrollbar {
+  display: none;
 }
 .is-current .code-scroll {
   background: #181818;
@@ -1150,6 +1159,58 @@ kbd {
   width: max-content;
   font: 11px/22px var(--mono);
   tab-size: 2;
+}
+.code-content {
+  display: flex;
+  min-width: 100%;
+  padding-right: 16px;
+}
+.code-main {
+  flex: 1;
+  min-width: 0;
+}
+.minimap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  background: #0d0d0d;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  z-index: 3;
+}
+.minimap-lines {
+  position: absolute;
+  inset: 0;
+}
+.minimap-tick {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: 1px;
+  background: #2a2f2b;
+}
+.minimap-tick.pad {
+  background: #1c211d;
+}
+.minimap-tick.added {
+  background: #4fbf73;
+}
+.minimap-tick.removed {
+  background: #e06c5a;
+}
+.minimap-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+  z-index: 1;
 }
 .line-gutter {
   min-width: 45px;
@@ -2051,6 +2112,9 @@ kbd {
   }
   .source-grid {
     font-size: 11px;
+  }
+  .minimap {
+    display: none;
   }
   .panel-position {
     font-size: 10px;

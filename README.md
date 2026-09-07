@@ -32,7 +32,7 @@ Restart the development command after changing files in `electron/`.
 
 The viewer starts at the latest file revision. History follows renames, so each panel shows the filename as it existed in that commit. Removed lines are highlighted on the left, additions to the selected revision in the center, and additions in the following revision on the right. The three panels are padded so unchanged lines stay on the same row across all of them, and scroll together. **Changes** toggles highlighting; **Sync scroll** links horizontal and vertical scrolling.
 
-To focus on what actually changed, toggle **Collapse**. Unchanged code folds away behind `··· n unchanged lines hidden` markers, leaving only the changed lines and a little context around each. Click a marker to reveal that block again. Use the **jump** controls to hop between change hunks in the selected commit; the current one is highlighted and scrolled into view.
+To focus on what actually changed, toggle **Collapse**. Unchanged code folds away behind `··· n unchanged lines hidden` markers, leaving only the changed lines and a little context around each. Click a marker to reveal that block again. Use the **jump** controls — or the `Up`/`Down` arrow keys (and `N`/`P`) — to hop between change hunks in the selected commit; the current one is highlighted and scrolled into view.
 
 Recently opened repositories are remembered and listed in the sidebar and welcome screen, so you can reopen one with a single click.
 
@@ -41,7 +41,8 @@ Recently opened repositories are remembered and listed in the sidebar and welcom
 | `Ctrl/Cmd + O`   | Open or switch repository   |
 | `Ctrl/Cmd + P`   | Focus file search           |
 | `Left` / `Right` | Previous / next file commit |
-| `N` / `P`        | Next / previous change      |
+| `Up` / `Down`   | Previous / next change hunk |
+| `N` / `P`        | Next / previous change hunk |
 
 The range slider also supports its native arrow keys. The explorer can be collapsed to give the code more room.
 
