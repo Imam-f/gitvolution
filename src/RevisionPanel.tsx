@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { UIEventHandler } from "react";
 import {
   ArrowLeft,
@@ -7,7 +7,14 @@ import {
   GitCommitHorizontal,
   LoaderCircle,
 } from "lucide-react";
-import { formatDate, highlight, languageFor, normalize } from "./code";
+import {
+  buildRows,
+  formatDate,
+  highlight,
+  languageFor,
+  MAX_LINES,
+  normalize,
+} from "./code";
 import type { Commit, Revision } from "./types";
 
 interface Props {
@@ -18,6 +25,9 @@ interface Props {
   hasFile: boolean;
   marks: number[];
   showChanges: boolean;
+  collapsed: boolean;
+  jumpLine: number | null;
+  jumpStamp: number;
   onScroll: UIEventHandler<HTMLDivElement>;
 }
 
@@ -27,44 +37,161 @@ const Code = memo(function Code({
   marks,
   position,
   showChanges,
+  collapsed,
+  jumpLine,
+  jumpStamp,
 }: {
   content: string;
   path: string;
   marks: number[];
   position: Props["position"];
   showChanges: boolean;
+  collapsed: boolean;
+  jumpLine: number | null;
+  jumpStamp: number;
 }) {
   const allLines = normalize(content).replace(/\n$/, "").split("\n");
-  const lines = allLines.slice(0, 10_000);
-  const html = highlight(lines.join("\n"), path);
-  const changed = new Set(showChanges ? marks : []);
+  const limited = allLines.length > MAX_LINES;
+  const lines = allLines.slice(0, MAX_LINES);
+  const changed = new Set<number>(showChanges || collapsed ? marks : []);
   const kind = position === "previous" ? "removed" : "added";
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(
+    new Set<number>(),
+  );
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setExpanded(new Set<number>());
+  }, [content, collapsed]);
+
+  useEffect(() => {
+    if (jumpLine == null || !gridRef.current) return;
+    const container = gridRef.current.parentElement;
+    if (!container) return;
+    const target = gridRef.current.querySelector(`[data-line="${jumpLine}"]`);
+    if (!target) return;
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    container.scrollTop +=
+      targetRect.top - containerRect.top - container.clientHeight * 0.25;
+  }, [jumpLine, jumpStamp]);
+
+  function expandGap(from: number) {
+    setExpanded((previous) => new Set(previous).add(from));
+  }
+
+  const lineClass = (i: number) =>
+    `${changed.has(i) ? kind : ""} ${jumpLine === i ? "jumped" : ""}`;
+
+  if (!collapsed) {
+    const html = highlight(lines.join("\n"), path);
+    return (
+      <>
+        {limited && (
+          <div className="preview-notice">
+            Preview limited to the first {MAX_LINES.toLocaleString()} lines.
+          </div>
+        )}
+        <div className="source-grid" ref={gridRef}>
+          <div className="line-gutter" aria-hidden="true">
+            {lines.map((_, i) => (
+              <div data-line={i} className={lineClass(i)} key={i}>
+                <span className="change-symbol">
+                  {changed.has(i) ? (kind === "added" ? "+" : "-") : ""}
+                </span>
+                {i + 1}
+              </div>
+            ))}
+          </div>
+          <div className="source-body">
+            <div className="line-highlights" aria-hidden="true">
+              {lines.map((_, i) => (
+                <div className={lineClass(i)} key={i} />
+              ))}
+            </div>
+            <pre>
+              <code dangerouslySetInnerHTML={{ __html: html }} />
+            </pre>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (changed.size === 0) {
+    return (
+      <div className="no-changes-note">No changed lines on this side.</div>
+    );
+  }
+
+  const rows = buildRows(lines, changed, true, expanded);
   return (
     <>
-      {allLines.length > lines.length && (
+      {limited && (
         <div className="preview-notice">
-          Preview limited to the first 10,000 lines.
+          Preview limited to the first {MAX_LINES.toLocaleString()} lines.
         </div>
       )}
-      <div className="source-grid">
+      <div className="source-grid" ref={gridRef}>
         <div className="line-gutter" aria-hidden="true">
-          {lines.map((_, i) => (
-            <div className={changed.has(i) ? kind : ""} key={i}>
-              <span className="change-symbol">
-                {changed.has(i) ? (kind === "added" ? "+" : "-") : ""}
-              </span>
-              {i + 1}
-            </div>
-          ))}
+          {rows.map((row) =>
+            row.kind === "gap" ? (
+              <div className="gap-gutter" key={`gap-${row.from}`}>
+                ···
+              </div>
+            ) : (
+              <div
+                data-line={row.line}
+                className={lineClass(row.line)}
+                key={`line-${row.line}`}
+              >
+                <span className="change-symbol">
+                  {changed.has(row.line) ? (kind === "added" ? "+" : "-") : ""}
+                </span>
+                {row.line + 1}
+              </div>
+            ),
+          )}
         </div>
         <div className="source-body">
           <div className="line-highlights" aria-hidden="true">
-            {lines.map((_, i) => (
-              <div className={changed.has(i) ? kind : ""} key={i} />
-            ))}
+            {rows.map((row) =>
+              row.kind === "gap" ? (
+                <div className="gap-space" key={`gap-${row.from}`} />
+              ) : (
+                <div className={lineClass(row.line)} key={`line-${row.line}`} />
+              ),
+            )}
           </div>
-          <pre>
-            <code dangerouslySetInnerHTML={{ __html: html }} />
+          <pre className="collapsed-pre">
+            <code>
+              {rows.map((row) =>
+                row.kind === "gap" ? (
+                  <button
+                    type="button"
+                    className="gap-marker"
+                    key={`gap-${row.from}`}
+                    onClick={() => expandGap(row.from)}
+                    title={`Show ${row.count} unchanged lines`}
+                  >
+                    <span>
+                      ··· {row.count} unchanged line
+                      {row.count === 1 ? "" : "s"} hidden
+                    </span>
+                    <span className="gap-action">click to show</span>
+                  </button>
+                ) : (
+                  <span
+                    className={`code-line ${jumpLine === row.line ? "jumped" : ""}`}
+                    data-line={row.line}
+                    key={`line-${row.line}`}
+                    dangerouslySetInnerHTML={{
+                      __html: highlight(row.text, path),
+                    }}
+                  />
+                ),
+              )}
+            </code>
           </pre>
         </div>
       </div>
@@ -80,6 +207,9 @@ export default function RevisionPanel({
   hasFile,
   marks,
   showChanges,
+  collapsed,
+  jumpLine,
+  jumpStamp,
   onScroll,
 }: Props) {
   const current = position === "current";
@@ -203,6 +333,9 @@ export default function RevisionPanel({
             marks={marks}
             position={position}
             showChanges={showChanges}
+            collapsed={collapsed}
+            jumpLine={jumpLine}
+            jumpStamp={jumpStamp}
           />
         ) : (
           <div className="panel-empty">

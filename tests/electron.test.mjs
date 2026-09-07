@@ -201,6 +201,48 @@ test(
       path: join(screenshotDirectory, "gitvolution-desktop.png"),
     });
 
+    // Collapse folds unchanged lines into expandable gaps, leaving changes plus context.
+    await page
+      .getByRole("button", { name: "Collapse unchanged lines" })
+      .click();
+    await expect(current.locator(".code-line")).toHaveCount(8);
+    await expect(current.locator(".gap-marker")).toHaveCount(2);
+    await expect(current.locator(".gap-marker").first()).toContainText(
+      "4 unchanged lines",
+    );
+    await expect(page.locator(".jump-count")).toHaveText("2");
+
+    // Jump walks through the changed lines and scrolls the current revision to each.
+    await page.getByRole("button", { name: "Jump to next change" }).click();
+    await expect(page.locator(".jump-count")).toHaveText("1 / 2");
+    await expect(current.locator(".code-line.jumped")).toHaveCount(1);
+    const jumpedInView = await current
+      .locator(".code-line.jumped")
+      .evaluate((element) => {
+        const container = element.closest(".code-scroll");
+        const elementRect = element.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        return (
+          elementRect.top >= containerRect.top - 1 &&
+          elementRect.bottom <= containerRect.bottom + 1
+        );
+      });
+    assert.ok(jumpedInView, "the jumped change should be scrolled into view");
+    await page.keyboard.press("n");
+    await expect(page.locator(".jump-count")).toHaveText("2 / 2");
+    await page.keyboard.press("p");
+    await expect(page.locator(".jump-count")).toHaveText("1 / 2");
+
+    // Hidden gaps expand on click to reveal their lines again.
+    await current.locator(".gap-marker").first().click();
+    await expect(current.locator(".gap-marker")).toHaveCount(1);
+    await expect(current.locator(".code-line")).toHaveCount(12);
+    await page
+      .getByRole("button", { name: "Collapse unchanged lines" })
+      .click();
+    await expect(current.locator(".code-line")).toHaveCount(0);
+    await expect(page.locator(".jump-count")).toHaveText("2");
+
     // A button retains focus after a click; arrows must still navigate the timeline.
     await page
       .getByRole("button", { name: "Previous commit", exact: true })
@@ -247,7 +289,7 @@ test(
     await slider.fill("1");
     await expect(current.locator("code")).toContainText("if (!items.length)");
 
-    await page.setViewportSize({ width: 760, height: 680 });
+    await page.setViewportSize({ width: 760, height: 600 });
     const codeHeight = await current
       .locator(".code-scroll")
       .evaluate((element) => element.clientHeight);

@@ -11,6 +11,14 @@ export function compare(
 ) {
   const removed: number[] = [];
   const added: number[] = [];
+  if (before == null && after != null) {
+    const text = normalize(after);
+    if (text) {
+      const lines = text.replace(/\n$/, "").split("\n");
+      for (let i = 0; i < lines.length; i++) added.push(i);
+    }
+    return { removed, added, limited: false };
+  }
   if (before == null || after == null)
     return { removed, added, limited: false };
   const changes = diffLines(normalize(before), normalize(after), {
@@ -93,6 +101,66 @@ export function highlight(content: string, path: string) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+export const MAX_LINES = 10_000;
+const CONTEXT_LINES = 3;
+
+export interface LineRow {
+  kind: "line";
+  line: number;
+  text: string;
+}
+
+export interface GapRow {
+  kind: "gap";
+  from: number;
+  count: number;
+}
+
+export type CodeRow = LineRow | GapRow;
+
+export function buildRows(
+  lines: string[],
+  changed: ReadonlySet<number>,
+  collapsed: boolean,
+  expanded: ReadonlySet<number> = new Set<number>(),
+): CodeRow[] {
+  if (!collapsed)
+    return lines.map((text, line) => ({ kind: "line", line, text }));
+  const visible = new Set<number>();
+  for (const changedLine of changed) {
+    for (
+      let i = Math.max(0, changedLine - CONTEXT_LINES);
+      i <= Math.min(lines.length - 1, changedLine + CONTEXT_LINES);
+      i++
+    )
+      visible.add(i);
+  }
+  const rows: CodeRow[] = [];
+  let from = -1;
+  let count = 0;
+  const flush = () => {
+    if (count === 0) return;
+    if (expanded.has(from)) {
+      for (let i = from; i < from + count; i++)
+        rows.push({ kind: "line", line: i, text: lines[i] });
+    } else {
+      rows.push({ kind: "gap", from, count });
+    }
+    count = 0;
+  };
+  for (let line = 0; line < lines.length; line++) {
+    if (visible.has(line)) {
+      flush();
+      rows.push({ kind: "line", line, text: lines[line] });
+    } else {
+      if (count === 0) from = line;
+      count++;
+    }
+  }
+  flush();
+  return rows;
 }
 
 export function formatDate(date: string, long = false) {

@@ -765,6 +765,25 @@ kbd {
 .toolbar-toggle:hover {
   background: #2c3b30;
 }
+.jump-controls {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid #303b32;
+  border-radius: 4px;
+  background: #161c18;
+  padding: 0 2px;
+}
+.jump-controls .icon-button {
+  padding: 4px 5px;
+}
+.jump-count {
+  font: 9px var(--mono);
+  color: #7b8a80;
+  min-width: 38px;
+  text-align: center;
+  white-space: nowrap;
+}
 .history-heading {
   display: flex;
   justify-content: space-between;
@@ -812,6 +831,9 @@ kbd {
   padding: 0 20px 20px;
   flex: 1;
   min-height: 190px;
+}
+.revision-panels.two-panels {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 .revision-panel {
   display: flex;
@@ -1130,6 +1152,74 @@ kbd {
   font-size: 10px;
   color: #cbb998;
   padding: 4px 12px 12px;
+}
+.line-gutter .jumped {
+  background: #3e5c49;
+  color: #e3f5e8;
+}
+.line-highlights .jumped {
+  background: #4d7a5b3d;
+  box-shadow: inset 2px 0 0 #b7e4c1;
+}
+.code-line {
+  display: block;
+  height: 22px;
+  white-space: pre;
+  overflow: hidden;
+}
+.code-line.jumped {
+  background: #4d7a5b3d;
+}
+.collapsed-pre {
+  padding-bottom: 0;
+}
+.gap-gutter {
+  height: 22px;
+  color: #587562;
+  text-align: right;
+  padding-right: 10px;
+  font: 9px var(--mono);
+  line-height: 22px;
+  user-select: none;
+}
+.gap-space {
+  height: 22px;
+  background: #18211b;
+}
+.gap-marker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 22px;
+  border: 0;
+  border-top: 1px solid #26342b;
+  border-bottom: 1px solid #26342b;
+  background: #1a251e;
+  color: #7f9686;
+  font: 10px var(--mono);
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+.gap-marker:hover {
+  background: #243529;
+  color: #d2e8d8;
+}
+.gap-marker:hover .gap-action {
+  color: #9fbea8;
+}
+.gap-action {
+  font-size: 9px;
+  color: #5f7c6a;
+}
+.no-changes-note {
+  padding: 28px 20px;
+  font-size: 11px;
+  color: #647e6d;
+  text-align: center;
 }
 .spin {
   animation: spin 1s linear infinite;

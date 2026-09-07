@@ -8,9 +8,11 @@ import {
 } from "react";
 import type { CSSProperties, UIEvent } from "react";
 import {
+  ArrowDown,
   ArrowDownUp,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
   Check,
   ChevronLeft,
@@ -19,6 +21,8 @@ import {
   ChevronsRight,
   CircleAlert,
   Code2,
+  Columns2,
+  Columns3,
   FileCode2,
   Files,
   FolderGit2,
@@ -29,6 +33,7 @@ import {
   Keyboard,
   Link2,
   LoaderCircle,
+  Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
   Pause,
@@ -38,7 +43,7 @@ import {
   X,
 } from "lucide-react";
 import RevisionPanel from "./RevisionPanel";
-import { compare, formatDate } from "./code";
+import { compare, formatDate, MAX_LINES } from "./code";
 import type { Commit, Repository, Revision } from "./types";
 
 const noMarks: number[] = [];
@@ -67,6 +72,10 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [syncScroll, setSyncScroll] = useState(true);
   const [showChanges, setShowChanges] = useState(true);
+  const [viewMode, setViewMode] = useState<"three" | "two">("three");
+  const [collapsed, setCollapsed] = useState(false);
+  const [changeIndex, setChangeIndex] = useState(-1);
+  const [jumpStamp, setJumpStamp] = useState(0);
   const [revisions, setRevisions] = useState<{
     key: string;
     values: (Revision | undefined)[];
@@ -74,6 +83,7 @@ export default function App() {
     after: ReturnType<typeof compare>;
   } | null>(null);
   const cache = useRef(new Map<string, Revision>());
+  const pending = useRef(new Map<string, Promise<Revision>>());
   const panels = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const scrollOrigin = useRef<EventTarget | null>(null);
@@ -89,6 +99,15 @@ export default function App() {
   const revisionKey = current ? `${key}:${current.hash}` : "";
   const loaded = revisions?.key === revisionKey ? revisions : null;
   const loadingRevisions = Boolean(revisionKey && !loaded);
+  const currentChanges = loaded
+    ? loaded.before.added
+        .filter((line) => line < MAX_LINES)
+        .sort((a, b) => a - b)
+    : noMarks;
+  const jumpLine =
+    changeIndex >= 0 && changeIndex < currentChanges.length
+      ? currentChanges[changeIndex]
+      : null;
   const filteredFiles =
     repository?.files.filter((file) =>
       file.toLowerCase().includes(deferredSearch.toLowerCase()),
@@ -115,6 +134,7 @@ export default function App() {
       setIndex(0);
       setSidebarOpen(true);
       cache.current.clear();
+      pending.current.clear();
     } catch (error) {
       setError(errorMessage(error));
     } finally {
@@ -139,6 +159,29 @@ export default function App() {
     } catch (error) {
       setError(errorMessage(error));
     }
+  }
+
+  function loadRevision(repositoryId: string, commit: Commit): Promise<Revision> {
+    const cacheKey = `${repositoryId}:${commit.hash}:${commit.path}`;
+    const cached = cache.current.get(cacheKey);
+    if (cached) return Promise.resolve(cached);
+    const inFlight = pending.current.get(cacheKey);
+    if (inFlight) return inFlight;
+    const request = api!
+      .getRevision(repositoryId, commit.hash, commit.path)
+      .then((value) => {
+        cache.current.set(cacheKey, value);
+        if (cache.current.size > 64)
+          cache.current.delete(cache.current.keys().next().value!);
+        pending.current.delete(cacheKey);
+        return value;
+      })
+      .catch((error) => {
+        pending.current.delete(cacheKey);
+        throw error;
+      });
+    pending.current.set(cacheKey, request);
+    return request;
   }
 
   useEffect(() => {
@@ -175,23 +218,11 @@ export default function App() {
           historyState.commits[currentIndex + 1],
         ];
         const values = await Promise.all(
-          commits.map(async (commit) => {
-            if (!commit) return undefined;
-            const cacheKey = `${repository.id}:${commit.hash}:${commit.path}`;
-            const cached = cache.current.get(cacheKey);
-            if (cached) return cached;
-            const value = await api.getRevision(
-              repository.id,
-              commit.hash,
-              commit.path,
-            );
-            if (!canceled) {
-              cache.current.set(cacheKey, value);
-              if (cache.current.size > 24)
-                cache.current.delete(cache.current.keys().next().value!);
-            }
-            return value;
-          }),
+          commits.map((commit) =>
+            commit
+              ? loadRevision(repository.id, commit)
+              : Promise.resolve<Revision | undefined>(undefined),
+          ),
         );
         if (canceled) return;
         const content = (value: Revision | undefined) =>
@@ -221,6 +252,45 @@ export default function App() {
   }, [repository, current, currentIndex, historyState, revisionKey]);
 
   useEffect(() => {
+    if (!api || !repository || !historyState || !history.length) return;
+    let canceled = false;
+    // Preload a window of adjacent commits so stepping stays instant.
+    const timer = setTimeout(() => {
+      const WINDOW = 12;
+      const CONCURRENCY = 4;
+      const start = Math.max(0, currentIndex - WINDOW);
+      const end = Math.min(history.length - 1, currentIndex + WINDOW);
+      const missing = history
+        .slice(start, end + 1)
+        .filter(
+          (commit) =>
+            !cache.current.has(
+              `${repository.id}:${commit.hash}:${commit.path}`,
+            ),
+        );
+      let index = 0;
+      const workers = Array.from(
+        { length: Math.min(CONCURRENCY, missing.length) },
+        async () => {
+          while (!canceled && index < missing.length) {
+            const commit = missing[index++];
+            try {
+              await loadRevision(repository.id, commit);
+            } catch {
+              // Ignore prefetch failures; the visible fetch will surface them.
+            }
+          }
+        },
+      );
+      void Promise.all(workers);
+    }, 220);
+    return () => {
+      canceled = true;
+      clearTimeout(timer);
+    };
+  }, [repository, currentIndex, historyState, history.length]);
+
+  useEffect(() => {
     if (!playing || loadingRevisions) return;
     if (currentIndex >= history.length - 1) {
       setPlaying(false);
@@ -230,9 +300,32 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [playing, currentIndex, history.length, loadingRevisions]);
 
+  useEffect(() => {
+    setChangeIndex(-1);
+  }, [revisionKey]);
+
   function navigate(nextIndex: number) {
     setPlaying(false);
     setIndex(Math.max(0, Math.min(history.length - 1, nextIndex)));
+  }
+
+  function jumpToChange(step: 1 | -1) {
+    if (!currentChanges.length) return;
+    const next =
+      changeIndex < 0
+        ? step === 1
+          ? 0
+          : currentChanges.length - 1
+        : (changeIndex + step + currentChanges.length) % currentChanges.length;
+    setChangeIndex(next);
+    setJumpStamp((stamp) => stamp + 1);
+  }
+
+  function toggleCollapse() {
+    const next = !collapsed;
+    setCollapsed(next);
+    if (next) setShowChanges(true);
+    setChangeIndex(-1);
   }
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
@@ -258,6 +351,16 @@ export default function App() {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       navigate(currentIndex + (event.key === "ArrowLeft" ? -1 : 1));
+      return;
+    }
+    if (event.key === "n" || event.key === "N") {
+      if (!currentChanges.length) return;
+      event.preventDefault();
+      jumpToChange(1);
+    } else if (event.key === "p" || event.key === "P") {
+      if (!currentChanges.length) return;
+      event.preventDefault();
+      jumpToChange(-1);
     }
   });
 
@@ -636,6 +739,46 @@ export default function App() {
                     {showChanges && <Check size={12} />}
                   </button>
                   <button
+                    className={`toolbar-toggle ${collapsed ? "active" : ""}`}
+                    onClick={toggleCollapse}
+                    aria-label="Collapse unchanged lines"
+                    aria-pressed={collapsed}
+                    title="Collapse unchanged code so only changes and their context are shown"
+                  >
+                    <Minimize2 size={14} />
+                    <span>Collapse</span>
+                  </button>
+                  <div
+                    className="jump-controls"
+                    title="Jump between changed lines (N / P)"
+                  >
+                    <button
+                      className="icon-button"
+                      onClick={() => jumpToChange(-1)}
+                      disabled={!currentChanges.length}
+                      aria-label="Jump to previous change"
+                      title="Jump to previous change (P)"
+                    >
+                      <ArrowUp size={15} />
+                    </button>
+                    <span className="jump-count">
+                      {currentChanges.length
+                        ? changeIndex < 0
+                          ? currentChanges.length
+                          : `${changeIndex + 1} / ${currentChanges.length}`
+                        : "0"}
+                    </span>
+                    <button
+                      className="icon-button"
+                      onClick={() => jumpToChange(1)}
+                      disabled={!currentChanges.length}
+                      aria-label="Jump to next change"
+                      title="Jump to next change (N)"
+                    >
+                      <ArrowDown size={15} />
+                    </button>
+                  </div>
+                  <button
                     className={`toolbar-toggle ${syncScroll ? "active" : ""}`}
                     onClick={() => setSyncScroll(!syncScroll)}
                     aria-label="Sync scroll"
@@ -644,6 +787,26 @@ export default function App() {
                   >
                     <Link2 size={14} />
                     <span>Sync scroll</span>
+                  </button>
+                  <button
+                    className={`toolbar-toggle ${viewMode === "two" ? "active" : ""}`}
+                    onClick={() =>
+                      setViewMode(viewMode === "two" ? "three" : "two")
+                    }
+                    aria-label="Panel layout"
+                    aria-pressed={viewMode === "two"}
+                    title={
+                      viewMode === "two"
+                        ? "Show the previous, current, and next revisions"
+                        : "Show only the previous and current revisions"
+                    }
+                  >
+                    {viewMode === "two" ? (
+                      <Columns2 size={14} />
+                    ) : (
+                      <Columns3 size={14} />
+                    )}
+                    <span>{viewMode === "two" ? "2 Panels" : "3 Panels"}</span>
                   </button>
                 </div>
               </div>
@@ -668,9 +831,14 @@ export default function App() {
                   )}
                 </span>
               </div>
-              <div className="revision-panels" ref={panels}>
-                {(["previous", "current", "next"] as const).map(
-                  (position, i) => (
+              <div
+                className={`revision-panels ${viewMode === "two" ? "two-panels" : ""}`}
+                ref={panels}
+              >
+                {(viewMode === "two"
+                  ? (["previous", "current"] as const)
+                  : (["previous", "current", "next"] as const)
+                ).map((position, i) => (
                     <RevisionPanel
                       key={position}
                       position={position}
@@ -690,10 +858,12 @@ export default function App() {
                             : (loaded?.after.added ?? noMarks)
                       }
                       showChanges={showChanges}
+                      collapsed={collapsed}
+                      jumpLine={i === 1 ? jumpLine : null}
+                      jumpStamp={i === 1 ? jumpStamp : 0}
                       onScroll={handleScroll}
                     />
-                  ),
-                )}
+                ))}
               </div>
               <section className="timeline" aria-label="File history timeline">
                 <div className="timeline-top">
@@ -850,7 +1020,10 @@ export default function App() {
                     <kbd>
                       <ArrowRight size={10} />
                     </kbd>{" "}
-                    to step through commits
+                    to step commits
+                    <span className="subtle-dot" />
+                    <kbd>N</kbd>
+                    <kbd>P</kbd> jump changes
                   </span>
                 </div>
               </section>
