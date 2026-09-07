@@ -868,7 +868,7 @@ export default function App() {
                   </button>
                 )}
                 <span>THE FILE HISTORY EXPLORER</span>
-                <span className="welcome-version">v1.0</span>
+                <span className="welcome-version">v0.1</span>
               </div>
               <div className="welcome-content">
                 <div className="eyebrow">

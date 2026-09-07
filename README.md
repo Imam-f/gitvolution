@@ -4,6 +4,30 @@ A local, read-only Electron app for exploring how a Git-tracked file changed ove
 
 Select a repository, pick a file, and scrub through its history. Three syntax-highlighted panels show the **previous**, **current**, and **next** revisions of that file, without checking out commits or touching your working tree.
 
+## Screenshots
+
+Welcome screen:
+
+![Welcome screen](screenshots/welcome.png)
+
+The three-panel **Evolution** view, with the previous, current, and next revisions padded and aligned:
+
+![Three-panel evolution view](screenshots/evolution.png)
+
+The two-panel **Change** view for a single commit, with removed and added lines highlighted:
+
+![Two-panel change view](screenshots/change.png)
+
+The **Collapse** mode, which folds unchanged lines into expandable gaps:
+
+![Collapsed view](screenshots/collapsed.png)
+
+These were generated from a temporary Git repository. Regenerate them with:
+
+```sh
+node scripts/capture-screenshots.mjs
+```
+
 ## Run
 
 Requires **Node.js 22.12+** (or 24 LTS) and **Git on your PATH**.
