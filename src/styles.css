@@ -974,15 +974,40 @@ kbd {
     background: #7fbf8f;
 }
 .revision-panels {
+    --divider: 12px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr) minmax(0, 1fr);
-    gap: 12px;
+    gap: 0;
     padding: 0 20px 20px;
     flex: 1;
     min-height: 190px;
 }
-.revision-panels.two-panel {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+.panel-divider {
+    position: relative;
+    cursor: col-resize;
+    touch-action: none;
+    z-index: 1;
+}
+.panel-divider::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    background: #303a32;
+    transition:
+        background 0.15s ease,
+        width 0.15s ease;
+}
+.panel-divider:hover::after,
+.panel-divider.is-dragging::after {
+    width: 3px;
+    background: #698671;
+}
+.revision-panels.is-resizing {
+    user-select: none;
+    cursor: col-resize;
 }
 .revision-panel {
     display: flex;
@@ -1676,7 +1701,7 @@ kbd {
         grid-template-columns: 268px minmax(0, 1fr);
     }
     .revision-panels {
-        gap: 16px;
+        --divider: 16px;
         padding: 0 24px 24px;
     }
     .commit-card {
@@ -1713,7 +1738,7 @@ kbd {
         display: none;
     }
     .revision-panels {
-        gap: 8px;
+        --divider: 8px;
         padding: 0 12px 14px;
     }
     .panel-heading {
@@ -2095,6 +2120,9 @@ kbd {
         flex: none;
         gap: 10px;
         padding: 0 12px 14px;
+    }
+    .panel-divider {
+        display: none;
     }
     .revision-panel {
         flex: 0 0 85%;

@@ -1,10 +1,19 @@
 import { FileCode2, PanelLeftOpen } from "lucide-react";
-import type { RefObject, UIEventHandler } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import type {
+    CSSProperties,
+    PointerEvent as ReactPointerEvent,
+    RefObject,
+    UIEventHandler,
+} from "react";
 import RevisionPanel from "../RevisionPanel";
 import type { DisplayLine } from "../code";
 import type { Commit, Repository, Revision } from "../types";
 import Timeline from "./Timeline";
 import ViewerToolbar from "./ViewerToolbar";
+
+const MIN_FRACTION = 0.2;
+const SNAP_PX = 8;
 
 export interface LoadedRevisions {
     values: (Revision | undefined)[];
@@ -94,6 +103,97 @@ export default function Viewer({
         ? (["previous", "current"] as const)
         : (["previous", "current", "next"] as const);
 
+    const [splits, setSplits] = useState<number[]>(() =>
+        diff ? [1, 1.08] : [1, 1.08, 1],
+    );
+    const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+    const dragRef = useRef<{
+        index: number;
+        startX: number;
+        startSplits: number[];
+        contentWidth: number;
+        dividerWidth: number;
+    } | null>(null);
+
+    useEffect(() => {
+        setSplits(diff ? [1, 1.08] : [1, 1.08, 1]);
+        setDraggingIndex(null);
+    }, [diff]);
+
+    useEffect(() => {
+        if (draggingIndex === null) return;
+        function onMove(event: PointerEvent) {
+            const drag = dragRef.current;
+            const container = panels.current;
+            if (!drag || !container) return;
+            const count = drag.startSplits.length;
+            const total = drag.startSplits.reduce(
+                (sum, value) => sum + value,
+                0,
+            );
+            const usableWidth =
+                drag.contentWidth - drag.dividerWidth * (count - 1);
+            const delta =
+                ((event.clientX - drag.startX) * total) / usableWidth;
+            const pair =
+                drag.startSplits[drag.index] +
+                drag.startSplits[drag.index + 1];
+            const min = MIN_FRACTION * pair;
+            let left = drag.startSplits[drag.index] + delta;
+            left = Math.max(min, Math.min(pair - min, left));
+            const snapThreshold = (SNAP_PX * total) / usableWidth;
+            if (!event.shiftKey && Math.abs(left - pair / 2) < snapThreshold) {
+                left = pair / 2;
+            }
+            const next = [...drag.startSplits];
+            next[drag.index] = left;
+            next[drag.index + 1] = pair - left;
+            setSplits(next);
+        }
+        function onEnd() {
+            dragRef.current = null;
+            setDraggingIndex(null);
+        }
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onEnd);
+        window.addEventListener("pointercancel", onEnd);
+        return () => {
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onEnd);
+            window.removeEventListener("pointercancel", onEnd);
+        };
+    }, [draggingIndex, panels]);
+
+    function startResize(
+        event: ReactPointerEvent<HTMLDivElement>,
+        index: number,
+    ) {
+        const container = panels.current;
+        if (!container) return;
+        event.preventDefault();
+        const style = getComputedStyle(container);
+        const contentWidth =
+            container.getBoundingClientRect().width -
+            parseFloat(style.paddingLeft) -
+            parseFloat(style.paddingRight);
+        dragRef.current = {
+            index,
+            startX: event.clientX,
+            startSplits: [...splits],
+            contentWidth,
+            dividerWidth: (event.currentTarget as HTMLDivElement).offsetWidth,
+        };
+        setDraggingIndex(index);
+    }
+
+    const gridColumns = splits
+        .flatMap((fraction, i) =>
+            i === 0
+                ? [`minmax(0, ${fraction}fr)`]
+                : ["var(--divider)", `minmax(0, ${fraction}fr)`],
+        )
+        .join(" ");
+
     return (
         <>
             <div className="viewer-toolbar">
@@ -156,37 +256,57 @@ export default function Viewer({
                 </span>
             </div>
             <div
-                className={`revision-panels ${diff ? "two-panel" : ""}`}
+                className={`revision-panels ${diff ? "two-panel" : ""} ${
+                    draggingIndex !== null ? "is-resizing" : ""
+                }`}
                 ref={panels}
+                style={{ gridTemplateColumns: gridColumns } as CSSProperties}
             >
                 {positions.map((position, i) => (
-                    <RevisionPanel
-                        key={position}
-                        position={position}
-                        commit={history[currentIndex + i - 1]}
-                        revision={loaded?.values[i]}
-                        loading={
-                            loadingHistory ||
-                            (Boolean(history[currentIndex + i - 1]) &&
-                                loadingRevisions)
-                        }
-                        hasFile={Boolean(selectedFile)}
-                        lines={
-                            i === 0
-                                ? prevLines
-                                : i === 1
-                                  ? currentLines
-                                  : nextLines
-                        }
-                        showChanges={showChanges}
-                        collapsed={collapsed}
-                        collapseChanged={collapseChanged}
-                        expanded={expanded}
-                        onExpand={onExpand}
-                        jumpLine={i === 1 ? jumpLine : null}
-                        jumpStamp={i === 1 ? jumpStamp : 0}
-                        onScroll={onScroll}
-                    />
+                    <Fragment key={position}>
+                        {i > 0 && (
+                            <div
+                                className={`panel-divider ${
+                                    draggingIndex === i - 1
+                                        ? "is-dragging"
+                                        : ""
+                                }`}
+                                onPointerDown={(event) =>
+                                    startResize(event, i - 1)
+                                }
+                                role="separator"
+                                aria-orientation="vertical"
+                                aria-label="Resize panels"
+                            />
+                        )}
+                        <RevisionPanel
+                            key={position}
+                            position={position}
+                            commit={history[currentIndex + i - 1]}
+                            revision={loaded?.values[i]}
+                            loading={
+                                loadingHistory ||
+                                (Boolean(history[currentIndex + i - 1]) &&
+                                    loadingRevisions)
+                            }
+                            hasFile={Boolean(selectedFile)}
+                            lines={
+                                i === 0
+                                    ? prevLines
+                                    : i === 1
+                                      ? currentLines
+                                      : nextLines
+                            }
+                            showChanges={showChanges}
+                            collapsed={collapsed}
+                            collapseChanged={collapseChanged}
+                            expanded={expanded}
+                            onExpand={onExpand}
+                            jumpLine={i === 1 ? jumpLine : null}
+                            jumpStamp={i === 1 ? jumpStamp : 0}
+                            onScroll={onScroll}
+                        />
+                    </Fragment>
                 ))}
             </div>
             <Timeline
