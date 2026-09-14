@@ -2173,7 +2173,7 @@ kbd {
         width: 27px;
     }
     .repo-button {
-        font-size: 10px;
+        font-size: 0;
         padding: 8px;
     }
     .workspace {
@@ -2259,6 +2259,16 @@ kbd {
     }
     .viewer-toolbar {
         padding: 0 12px;
+    }
+    .viewer-options {
+        gap: 4px;
+    }
+    .view-mode-switch button span,
+    .viewer-options > .toolbar-toggle:last-child {
+        display: none;
+    }
+    .jump-count {
+        min-width: 24px;
     }
     .breadcrumb-directory {
         display: none;

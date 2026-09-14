@@ -45,9 +45,20 @@ function toAlignment(
     const rows: PairRow[] = [];
     let a = 0;
     let b = 0;
-    for (const change of changes) {
+    for (let i = 0; i < changes.length; i++) {
+        const change = changes[i];
         const count = change.count ?? 0;
-        if (change.added) {
+        const added = changes[i + 1];
+        if (change.removed && added?.added) {
+            const addedCount = added.count ?? 0;
+            for (let k = 0; k < Math.max(count, addedCount); k++) {
+                rows.push({
+                    a: k < count ? a++ : null,
+                    b: k < addedCount ? b++ : null,
+                });
+            }
+            i++;
+        } else if (change.added) {
             for (let k = 0; k < count; k++) rows.push({ a: null, b: b++ });
         } else if (change.removed) {
             for (let k = 0; k < count; k++) rows.push({ a: a++, b: null });
@@ -151,7 +162,10 @@ export function alignPanels(
                 column(
                     previousLines,
                     (row) => row.a,
-                    (row) => row.b == null && row.a != null,
+                    (row) =>
+                        row.a != null &&
+                        (row.b == null ||
+                            previousLines[row.a] !== nextLines[row.b]),
                 ),
                 Array.from({ length: previousNext.rows.length }, () => ({
                     text: "",
@@ -161,7 +175,10 @@ export function alignPanels(
                 column(
                     nextLines,
                     (row) => row.b,
-                    (row) => row.a == null && row.b != null,
+                    (row) =>
+                        row.b != null &&
+                        (row.a == null ||
+                            previousLines[row.a] !== nextLines[row.b]),
                 ),
             ],
             limited: false,
@@ -207,17 +224,25 @@ export function alignPanels(
             column(
                 previousLines,
                 (row) => row.p,
-                (row) => row.c == null && row.p != null,
+                (row) =>
+                    row.p != null &&
+                    (row.c == null ||
+                        previousLines[row.p] !== currentLines[row.c]),
             ),
             column(
                 currentLines,
                 (row) => row.c,
-                (row) => row.p == null && row.c != null,
+                (row) =>
+                    row.c != null &&
+                    (row.p == null ||
+                        previousLines[row.p] !== currentLines[row.c]),
             ),
             column(
                 nextLines,
                 (row) => row.n,
-                (row) => row.c == null && row.n != null,
+                (row) =>
+                    row.n != null &&
+                    (row.c == null || currentLines[row.c] !== nextLines[row.n]),
             ),
         ],
         limited: false,
@@ -248,7 +273,8 @@ export function alignPair(
         return {
             text: previousLines[index] ?? "",
             number: index + 1,
-            changed: row.b == null,
+            changed:
+                row.b == null || previousLines[index] !== currentLines[row.b],
         };
     });
     const currentColumn = pair.rows.map((row) => {
@@ -257,7 +283,8 @@ export function alignPair(
         return {
             text: currentLines[index] ?? "",
             number: index + 1,
-            changed: row.a == null,
+            changed:
+                row.a == null || previousLines[row.a] !== currentLines[index],
         };
     });
     return { columns: [previousColumn, currentColumn], limited: false };
