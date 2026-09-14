@@ -114,6 +114,11 @@ const app = await _electron.launch({
     timeout: 30_000,
 });
 const page = await app.firstWindow();
+await page.evaluate(() => {
+    localStorage.removeItem("gitvolution.recent");
+    localStorage.removeItem("gitvolution.recentFiles");
+});
+await page.reload();
 await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].setContentSize(1600, 900);
 });

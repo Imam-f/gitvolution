@@ -12,6 +12,7 @@ import {
     X,
 } from "lucide-react";
 import type { RefObject } from "react";
+import { version } from "../../package.json";
 import type { RecentFile, RecentRepository, Repository } from "../types";
 
 interface Props {
@@ -59,7 +60,7 @@ export default function Welcome({
                     </button>
                 )}
                 <span>THE FILE HISTORY EXPLORER</span>
-                <span className="welcome-version">v0.1</span>
+                <span className="welcome-version">v{version}</span>
             </div>
             <div className="welcome-content">
                 <div className="eyebrow">

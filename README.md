@@ -6,6 +6,8 @@ Select a repository, pick a file, and scrub through its history. Three syntax-hi
 
 ## Screenshots
 
+Captured from the current desktop build at 1600 x 900.
+
 Welcome screen:
 
 ![Welcome screen](screenshots/welcome.png)
