@@ -16,6 +16,16 @@ import ZenHud from "./ZenHud";
 const MIN_FRACTION = 0.2;
 const SNAP_PX = 8;
 
+function gridColumnsFor(splits: number[]) {
+    return splits
+        .flatMap((fraction, i) =>
+            i === 0
+                ? [`minmax(0, ${fraction}fr)`]
+                : ["var(--divider)", `minmax(0, ${fraction}fr)`],
+        )
+        .join(" ");
+}
+
 export interface LoadedRevisions {
     values: (Revision | undefined)[];
     columns: DisplayLine[][];
@@ -118,6 +128,7 @@ export default function Viewer({
         index: number;
         startX: number;
         startSplits: number[];
+        currentSplits: number[];
         contentWidth: number;
         dividerWidth: number;
     } | null>(null);
@@ -155,26 +166,13 @@ export default function Viewer({
             const next = [...drag.startSplits];
             next[drag.index] = left;
             next[drag.index + 1] = pair - left;
-            const scrollPositions = [
-                ...container.querySelectorAll<HTMLDivElement>(".code-scroll"),
-            ].map((target) => ({
-                left: target.scrollLeft,
-                top: target.scrollTop,
-            }));
-            setSplits(next);
-            requestAnimationFrame(() => {
-                container
-                    .querySelectorAll<HTMLDivElement>(".code-scroll")
-                    .forEach((target, i) => {
-                        const position = scrollPositions[i];
-                        if (!position) return;
-                        target.scrollLeft = position.left;
-                        target.scrollTop = position.top;
-                    });
-            });
+            drag.currentSplits = next;
+            container.style.gridTemplateColumns = gridColumnsFor(next);
         }
         function onEnd() {
+            const finalSplits = dragRef.current?.currentSplits;
             dragRef.current = null;
+            if (finalSplits) setSplits(finalSplits);
             setDraggingIndex(null);
         }
         window.addEventListener("pointermove", onMove);
@@ -203,19 +201,14 @@ export default function Viewer({
             index,
             startX: event.clientX,
             startSplits: [...splits],
+            currentSplits: [...splits],
             contentWidth,
             dividerWidth: (event.currentTarget as HTMLDivElement).offsetWidth,
         };
         setDraggingIndex(index);
     }
 
-    const gridColumns = splits
-        .flatMap((fraction, i) =>
-            i === 0
-                ? [`minmax(0, ${fraction}fr)`]
-                : ["var(--divider)", `minmax(0, ${fraction}fr)`],
-        )
-        .join(" ");
+    const gridColumns = gridColumnsFor(splits);
 
     return (
         <>

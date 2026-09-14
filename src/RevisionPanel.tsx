@@ -376,10 +376,13 @@ export default function RevisionPanel({
         if (!el) return;
         const update = () => {
             const lineEl = el.querySelector<HTMLElement>(".line-gutter > div");
-            setDims({
-                height: el.clientHeight,
-                line: lineEl?.offsetHeight || 22,
-            });
+            const height = el.clientHeight;
+            const line = lineEl?.offsetHeight || 22;
+            setDims((current) =>
+                current.height === height && current.line === line
+                    ? current
+                    : { height, line },
+            );
         };
         update();
         const observer = new ResizeObserver(update);

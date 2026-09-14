@@ -1030,6 +1030,9 @@ kbd {
     user-select: none;
     cursor: col-resize;
 }
+.revision-panels.is-resizing .minimap {
+    pointer-events: none;
+}
 .revision-panel {
     display: flex;
     flex-direction: column;
