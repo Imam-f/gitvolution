@@ -7,7 +7,6 @@ import {
     GitBranch,
     PanelLeftClose,
     Search,
-    ShieldCheck,
     X,
 } from "lucide-react";
 import type { RefObject } from "react";
@@ -232,15 +231,6 @@ export default function Sidebar({
                     </p>
                 )}
             </nav>
-            <div className="sidebar-bottom">
-                <div className="read-only-icon">
-                    <ShieldCheck size={17} />
-                </div>
-                <div>
-                    <strong>Look back. Leave no trace.</strong>
-                    <p>Your working tree stays untouched.</p>
-                </div>
-            </div>
         </aside>
     );
 }

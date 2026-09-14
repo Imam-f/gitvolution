@@ -69,7 +69,8 @@ const Code = memo(function Code({
 
     useEffect(() => {
         if (jumpLine == null || !gridRef.current) return;
-        const container = gridRef.current.parentElement;
+        const container =
+            gridRef.current.closest<HTMLDivElement>(".code-scroll");
         if (!container) return;
         const target = gridRef.current.querySelector(
             `[data-line="${jumpLine}"]`,

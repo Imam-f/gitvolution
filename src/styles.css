@@ -464,7 +464,8 @@ kbd {
 .recent-files-list {
     max-height: 190px;
     overflow-y: auto;
-    padding-right: 2px;
+    margin-right: -14px;
+    padding-right: 16px;
 }
 .recent-item {
     display: flex;
@@ -524,27 +525,6 @@ kbd {
 .recent-item.selected > svg {
     color: var(--mint);
     opacity: 1;
-}
-.sidebar-bottom {
-    border-top: 1px solid var(--border);
-    margin: 0 15px;
-    padding: 18px 2px;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-}
-.read-only-icon {
-    color: #819d89;
-}
-.sidebar-bottom strong {
-    font-weight: 500;
-    font-size: 10px;
-    color: #a7b5ab;
-}
-.sidebar-bottom p {
-    font-size: 9px;
-    color: #697c6f;
-    margin: 5px 0 0;
 }
 .main-content {
     min-width: 0;
@@ -2104,19 +2084,6 @@ kbd {
     .file-name {
         font-size: 10px;
     }
-    .sidebar-bottom {
-        margin: 0 10px;
-        padding: 14px 0;
-    }
-    .sidebar-bottom strong {
-        font-size: 9px;
-    }
-    .sidebar-bottom p {
-        font-size: 8px;
-    }
-    .read-only-icon {
-        display: none;
-    }
     .viewer-toolbar {
         height: 52px;
         min-height: 52px;
@@ -2300,9 +2267,6 @@ kbd {
     }
     .sidebar-empty p {
         margin: 4px;
-    }
-    .sidebar-bottom {
-        display: none;
     }
     .main-content {
         overflow: visible;
