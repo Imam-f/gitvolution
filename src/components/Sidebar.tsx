@@ -86,21 +86,23 @@ export default function Sidebar({
                     <div className="file-section-heading">
                         <span>RECENT FILES</span>
                     </div>
-                    {currentRecentFiles.map((entry) => (
-                        <button
-                            key={entry.file}
-                            className={`recent-item ${entry.file === selectedFile ? "selected" : ""}`}
-                            onClick={() => onOpenRecentFile(entry)}
-                            disabled={opening}
-                            title={`${entry.file} · ${entry.repoName}`}
-                        >
-                            <FileCode2 size={15} />
-                            <span>
-                                <strong>{entry.file.split("/").at(-1)}</strong>
-                                <small>{entry.file}</small>
-                            </span>
-                        </button>
-                    ))}
+                    <div className="recent-files-list">
+                        {currentRecentFiles.map((entry) => (
+                            <button
+                                key={entry.file}
+                                className={`recent-item ${entry.file === selectedFile ? "selected" : ""}`}
+                                onClick={() => onOpenRecentFile(entry)}
+                                disabled={opening}
+                                title={`${entry.file} · ${entry.repoName}`}
+                            >
+                                <FileCode2 size={15} />
+                                <span>
+                                    <strong>{entry.file.split("/").at(-1)}</strong>
+                                    <small>{entry.file}</small>
+                                </span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
             {!repository && recent.length > 0 && (

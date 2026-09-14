@@ -3,7 +3,7 @@ import type { RecentFile, RecentRepository } from "./types";
 const RECENT_KEY = "gitvolution.recent";
 const RECENT_LIMIT = 5;
 const RECENT_FILES_KEY = "gitvolution.recentFiles";
-const RECENT_FILES_LIMIT = 10;
+const RECENT_FILES_LIMIT = 30;
 
 export function loadRecent(): RecentRepository[] {
     try {

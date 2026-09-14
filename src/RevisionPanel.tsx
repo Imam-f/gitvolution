@@ -3,6 +3,7 @@ import type { UIEvent, UIEventHandler } from "react";
 import {
     ArrowLeft,
     ArrowRight,
+    ChevronDown,
     FileCode2,
     GitCommitHorizontal,
     LoaderCircle,
@@ -31,6 +32,8 @@ interface Props {
     collapseChanged: ReadonlySet<number>;
     expanded: ReadonlySet<number>;
     onExpand: (from: number) => void;
+    messageExpanded: boolean;
+    onToggleMessage: () => void;
     jumpLine: number | null;
     jumpStamp: number;
     onScroll: UIEventHandler<HTMLDivElement>;
@@ -345,6 +348,8 @@ export default function RevisionPanel({
     collapseChanged,
     expanded,
     onExpand,
+    messageExpanded,
+    onToggleMessage,
     jumpLine,
     jumpStamp,
     onScroll,
@@ -460,7 +465,20 @@ export default function RevisionPanel({
                           : "T + 1"}
                 </span>
             </div>
-            <div className="commit-card">
+            <div
+                className={`commit-card ${messageExpanded ? "message-expanded" : ""}`}
+                role="button"
+                tabIndex={0}
+                aria-expanded={messageExpanded}
+                title={messageExpanded ? "Collapse message" : "Expand message"}
+                onClick={onToggleMessage}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onToggleMessage();
+                    }
+                }}
+            >
                 <div className="commit-meta">
                     <span className="commit-hash">
                         <GitCommitHorizontal size={14} />
@@ -472,9 +490,16 @@ export default function RevisionPanel({
                             : "No revision selected"}
                     </time>
                 </div>
-                <h3 title={commit?.subject}>
+                <h3 title={messageExpanded ? undefined : commit?.subject}>
                     {commit?.subject ||
                         (hasFile ? "No revision" : "Waiting for a story")}
+                    {commit && (
+                        <ChevronDown
+                            className="commit-chevron"
+                            size={13}
+                            aria-hidden="true"
+                        />
+                    )}
                 </h3>
                 <div className="commit-author">
                     {commit ? (

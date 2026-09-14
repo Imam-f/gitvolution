@@ -375,6 +375,10 @@ test(
             "if (!items.length)",
         );
 
+        const commitCard = current.locator(".commit-card");
+        await expect(commitCard).toHaveAttribute("aria-expanded", "false");
+        await commitCard.click();
+        await expect(commitCard).toHaveAttribute("aria-expanded", "true");
         await page.setViewportSize({ width: 760, height: 520 });
         const codeHeight = await current
             .locator(".code-scroll")

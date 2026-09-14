@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     ArrowRight,
     ArrowUp,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     ChevronsLeft,
@@ -14,6 +15,7 @@ import {
     Play,
 } from "lucide-react";
 import type { CSSProperties } from "react";
+import { useState } from "react";
 import { formatDate } from "../code";
 import type { Commit, Repository } from "../types";
 
@@ -36,6 +38,7 @@ export default function Timeline({
     onNavigate,
     onPlayingChange,
 }: Props) {
+    const [collapsed, setCollapsed] = useState(false);
     const percent =
         history.length > 1
             ? (currentIndex / (history.length - 1)) * 100
@@ -44,8 +47,24 @@ export default function Timeline({
               : 0;
 
     return (
-        <section className="timeline" aria-label="File history timeline">
-            <div className="timeline-top">
+        <section
+            className={`timeline ${collapsed ? "collapsed" : ""}`}
+            aria-label="File history timeline"
+        >
+            <div
+                className="timeline-top"
+                role="button"
+                tabIndex={0}
+                aria-expanded={!collapsed}
+                title={collapsed ? "Expand timeline" : "Collapse timeline"}
+                onClick={() => setCollapsed((value) => !value)}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setCollapsed((value) => !value);
+                    }
+                }}
+            >
                 <div className="timeline-label">
                     <History size={15} />
                     <span>TIME TRAVEL</span>
@@ -53,19 +72,28 @@ export default function Timeline({
                         Drag to explore this file's history
                     </span>
                 </div>
-                <div className="timeline-counter">
-                    <span>
-                        {history.length
-                            ? String(currentIndex + 1).padStart(2, "0")
-                            : "00"}
-                    </span>
-                    <span>/</span>
-                    {String(history.length).padStart(2, "0")}
-                    <span>commits</span>
+                <div className="timeline-controls">
+                    <div className="timeline-counter">
+                        <span>
+                            {history.length
+                                ? String(currentIndex + 1).padStart(2, "0")
+                                : "00"}
+                        </span>
+                        <span>/</span>
+                        {String(history.length).padStart(2, "0")}
+                        <span>commits</span>
+                    </div>
+                    <ChevronDown
+                        className="timeline-chevron"
+                        size={15}
+                        aria-hidden="true"
+                    />
                 </div>
             </div>
-            <div className="timeline-main">
-                <div className="playback-controls">
+            {!collapsed && (
+                <>
+                    <div className="timeline-main">
+                        <div className="playback-controls">
                     <button
                         className="icon-button"
                         onClick={() => onNavigate(0)}
@@ -223,6 +251,8 @@ export default function Timeline({
                     jump changes
                 </span>
             </div>
+                </>
+            )}
         </section>
     );
 }

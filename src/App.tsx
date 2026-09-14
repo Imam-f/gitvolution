@@ -8,7 +8,7 @@ import {
     useRef,
     useState,
 } from "react";
-import type { UIEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, UIEvent } from "react";
 import { CircleAlert, X } from "lucide-react";
 import {
     alignPair,
@@ -65,9 +65,12 @@ export default function App() {
     const [opening, setOpening] = useState(false);
     const [playing, setPlaying] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarWidth, setSidebarWidth] = useState(246);
+    const [resizingSidebar, setResizingSidebar] = useState(false);
     const [syncScroll, setSyncScroll] = useState(true);
     const [showChanges, setShowChanges] = useState(true);
     const [collapsed, setCollapsed] = useState(true);
+    const [messageExpanded, setMessageExpanded] = useState(false);
     const [zen, setZen] = useState(false);
     const [viewMode, setViewMode] = useState<"compare" | "diff">("diff");
     const [expanded, setExpanded] = useState<ReadonlySet<number>>(
@@ -83,6 +86,10 @@ export default function App() {
     } | null>(null);
     const cache = useRef(new Map<string, Revision>());
     const panels = useRef<HTMLDivElement>(null);
+    const sidebarResizeRef = useRef<{
+        startX: number;
+        startWidth: number;
+    } | null>(null);
     const searchInput = useRef<HTMLInputElement>(null);
     const scrollOrigin = useRef<EventTarget | null>(null);
     const scrollTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -238,6 +245,16 @@ export default function App() {
         setPlaying(false);
         setError("");
         if (repository) addRecentFile(repository, file);
+    }
+
+    function goHome() {
+        setSelectedFile("");
+        setHistoryState(null);
+        setRevisions(null);
+        setIndex(0);
+        setPlaying(false);
+        setError("");
+        setZen(false);
     }
 
     async function openRecentFile(entry: RecentFile) {
@@ -419,6 +436,7 @@ export default function App() {
     useEffect(() => {
         setChangeIndex(-1);
         setExpanded(new Set<number>());
+        setMessageExpanded(false);
     }, [revisionKey, viewMode, collapsed]);
 
     const expandGap = useCallback((from: number) => {
@@ -449,6 +467,41 @@ export default function App() {
         if (next) setShowChanges(true);
         setChangeIndex(-1);
     }
+
+    function startSidebarResize(event: ReactPointerEvent<HTMLDivElement>) {
+        event.preventDefault();
+        sidebarResizeRef.current = {
+            startX: event.clientX,
+            startWidth: sidebarWidth,
+        };
+        setResizingSidebar(true);
+    }
+
+    useEffect(() => {
+        if (!resizingSidebar) return;
+        function onMove(event: PointerEvent) {
+            const drag = sidebarResizeRef.current;
+            if (!drag) return;
+            setSidebarWidth(
+                Math.max(
+                    180,
+                    Math.min(520, drag.startWidth + event.clientX - drag.startX),
+                ),
+            );
+        }
+        function onEnd() {
+            sidebarResizeRef.current = null;
+            setResizingSidebar(false);
+        }
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onEnd);
+        window.addEventListener("pointercancel", onEnd);
+        return () => {
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onEnd);
+            window.removeEventListener("pointercancel", onEnd);
+        };
+    }, [resizingSidebar]);
 
     const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
         if (
@@ -549,9 +602,17 @@ export default function App() {
                 zen={zen}
                 onOpenRepository={openRepository}
                 onToggleZen={() => setZen((value) => !value)}
+                onHome={goHome}
             />
             <div
                 className={`workspace ${sidebarOpen ? "" : "sidebar-collapsed"}`}
+                style={
+                    sidebarOpen && !zen
+                        ? {
+                              gridTemplateColumns: `${sidebarWidth}px 6px minmax(0, 1fr)`,
+                          }
+                        : undefined
+                }
             >
                 {sidebarOpen && (
                     <Sidebar
@@ -571,6 +632,15 @@ export default function App() {
                         onBrowseFile={browseFile}
                         onSelectFile={selectFile}
                         onSearchChange={setSearch}
+                    />
+                )}
+                {sidebarOpen && !zen && (
+                    <div
+                        className="sidebar-resizer"
+                        onPointerDown={startSidebarResize}
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize sidebar"
                     />
                 )}
                 <main className="main-content">
@@ -628,6 +698,7 @@ export default function App() {
                             playing={playing}
                             panels={panels}
                             zen={zen}
+                            messageExpanded={messageExpanded}
                             onShowSidebar={() => setSidebarOpen(true)}
                             onViewModeChange={setViewMode}
                             onShowChangesChange={() =>
@@ -639,6 +710,9 @@ export default function App() {
                                 setSyncScroll(!syncScroll)
                             }
                             onExpand={expandGap}
+                            onToggleMessage={() =>
+                                setMessageExpanded((value) => !value)
+                            }
                             onScroll={handleScroll}
                             onNavigate={navigate}
                             onPlayingChange={setPlaying}

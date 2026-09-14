@@ -14,6 +14,7 @@ interface Props {
     zen: boolean;
     onOpenRepository: () => void;
     onToggleZen: () => void;
+    onHome: () => void;
 }
 
 export default function AppHeader({
@@ -22,6 +23,7 @@ export default function AppHeader({
     zen,
     onOpenRepository,
     onToggleZen,
+    onHome,
 }: Props) {
     const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -56,7 +58,10 @@ export default function AppHeader({
             <a
                 className="brand"
                 href="#"
-                onClick={(event) => event.preventDefault()}
+                onClick={(event) => {
+                    event.preventDefault();
+                    onHome();
+                }}
                 aria-label="Gitvolution"
             >
                 <span className="brand-mark">

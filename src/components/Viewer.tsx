@@ -58,6 +58,7 @@ interface Props {
     playing: boolean;
     panels: RefObject<HTMLDivElement | null>;
     zen: boolean;
+    messageExpanded: boolean;
     onShowSidebar: () => void;
     onViewModeChange: (mode: "compare" | "diff") => void;
     onShowChangesChange: () => void;
@@ -65,6 +66,7 @@ interface Props {
     onJump: (step: 1 | -1) => void;
     onSyncScrollChange: () => void;
     onExpand: (from: number) => void;
+    onToggleMessage: () => void;
     onScroll: UIEventHandler<HTMLDivElement>;
     onNavigate: (index: number) => void;
     onPlayingChange: (playing: boolean) => void;
@@ -98,6 +100,7 @@ export default function Viewer({
     playing,
     panels,
     zen,
+    messageExpanded,
     onShowSidebar,
     onViewModeChange,
     onShowChangesChange,
@@ -105,6 +108,7 @@ export default function Viewer({
     onJump,
     onSyncScrollChange,
     onExpand,
+    onToggleMessage,
     onScroll,
     onNavigate,
     onPlayingChange,
@@ -319,6 +323,8 @@ export default function Viewer({
                             collapseChanged={collapseChanged}
                             expanded={expanded}
                             onExpand={onExpand}
+                            messageExpanded={messageExpanded}
+                            onToggleMessage={onToggleMessage}
                             jumpLine={i === 1 ? jumpLine : null}
                             jumpStamp={i === 1 ? jumpStamp : 0}
                             onScroll={onScroll}
