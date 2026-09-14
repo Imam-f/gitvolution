@@ -11,6 +11,7 @@ import type { DisplayLine } from "../code";
 import type { Commit, Repository, Revision } from "../types";
 import Timeline from "./Timeline";
 import ViewerToolbar from "./ViewerToolbar";
+import ZenHud from "./ZenHud";
 
 const MIN_FRACTION = 0.2;
 const SNAP_PX = 8;
@@ -46,6 +47,7 @@ interface Props {
     jumpStamp: number;
     playing: boolean;
     panels: RefObject<HTMLDivElement | null>;
+    zen: boolean;
     onShowSidebar: () => void;
     onViewModeChange: (mode: "compare" | "diff") => void;
     onShowChangesChange: () => void;
@@ -56,6 +58,8 @@ interface Props {
     onScroll: UIEventHandler<HTMLDivElement>;
     onNavigate: (index: number) => void;
     onPlayingChange: (playing: boolean) => void;
+    onToggleZen: () => void;
+    onExitZen: () => void;
 }
 
 export default function Viewer({
@@ -83,6 +87,7 @@ export default function Viewer({
     jumpStamp,
     playing,
     panels,
+    zen,
     onShowSidebar,
     onViewModeChange,
     onShowChangesChange,
@@ -93,6 +98,8 @@ export default function Viewer({
     onScroll,
     onNavigate,
     onPlayingChange,
+    onToggleZen,
+    onExitZen,
 }: Props) {
     const diff = viewMode === "diff";
     const fileName = selectedFile.split("/").at(-1);
@@ -148,7 +155,23 @@ export default function Viewer({
             const next = [...drag.startSplits];
             next[drag.index] = left;
             next[drag.index + 1] = pair - left;
+            const scrollPositions = [
+                ...container.querySelectorAll<HTMLDivElement>(".code-scroll"),
+            ].map((target) => ({
+                left: target.scrollLeft,
+                top: target.scrollTop,
+            }));
             setSplits(next);
+            requestAnimationFrame(() => {
+                container
+                    .querySelectorAll<HTMLDivElement>(".code-scroll")
+                    .forEach((target, i) => {
+                        const position = scrollPositions[i];
+                        if (!position) return;
+                        target.scrollLeft = position.left;
+                        target.scrollTop = position.top;
+                    });
+            });
         }
         function onEnd() {
             dragRef.current = null;
@@ -232,6 +255,7 @@ export default function Viewer({
                     onCollapse={onCollapse}
                     onJump={onJump}
                     onSyncScrollChange={onSyncScrollChange}
+                    onToggleZen={onToggleZen}
                 />
             </div>
             <div className="history-heading">
@@ -318,6 +342,20 @@ export default function Viewer({
                 onNavigate={onNavigate}
                 onPlayingChange={onPlayingChange}
             />
+            {zen && (
+                <ZenHud
+                    fileName={fileName ?? ""}
+                    fileDirectory={fileDirectory}
+                    repositoryName={repository?.name}
+                    history={history}
+                    current={current}
+                    currentIndex={currentIndex}
+                    playing={playing}
+                    onNavigate={onNavigate}
+                    onPlayingChange={onPlayingChange}
+                    onExit={onExitZen}
+                />
+            )}
         </>
     );
 }

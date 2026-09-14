@@ -6,6 +6,7 @@ import {
     Columns2,
     Columns3,
     Link2,
+    Maximize2,
     Minimize2,
 } from "lucide-react";
 
@@ -21,6 +22,7 @@ interface Props {
     onCollapse: () => void;
     onJump: (step: 1 | -1) => void;
     onSyncScrollChange: () => void;
+    onToggleZen: () => void;
 }
 
 export default function ViewerToolbar({
@@ -35,6 +37,7 @@ export default function ViewerToolbar({
     onCollapse,
     onJump,
     onSyncScrollChange,
+    onToggleZen,
 }: Props) {
     return (
         <div className="viewer-options">
@@ -119,6 +122,15 @@ export default function ViewerToolbar({
             >
                 <Link2 size={14} />
                 <span>Sync scroll</span>
+            </button>
+            <button
+                className="toolbar-toggle"
+                onClick={onToggleZen}
+                aria-label="Focus mode"
+                title="Focus mode (Ctrl Shift F)"
+            >
+                <Maximize2 size={14} />
+                <span>Focus</span>
             </button>
         </div>
     );

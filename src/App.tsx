@@ -68,6 +68,7 @@ export default function App() {
     const [syncScroll, setSyncScroll] = useState(true);
     const [showChanges, setShowChanges] = useState(true);
     const [collapsed, setCollapsed] = useState(true);
+    const [zen, setZen] = useState(false);
     const [viewMode, setViewMode] = useState<"compare" | "diff">("diff");
     const [expanded, setExpanded] = useState<ReadonlySet<number>>(
         new Set<number>(),
@@ -468,6 +469,20 @@ export default function App() {
             return;
         }
         if (
+            (event.ctrlKey || event.metaKey) &&
+            event.shiftKey &&
+            event.key.toLowerCase() === "f"
+        ) {
+            event.preventDefault();
+            setZen((value) => !value);
+            return;
+        }
+        if (event.key === "Escape" && zen) {
+            event.preventDefault();
+            setZen(false);
+            return;
+        }
+        if (
             event.target instanceof HTMLElement &&
             (event.target.matches("input, textarea, select") ||
                 event.target.isContentEditable)
@@ -527,11 +542,13 @@ export default function App() {
     }
 
     return (
-        <div className="app-shell">
+        <div className={`app-shell ${zen ? "zen" : ""}`}>
             <AppHeader
                 repository={repository}
                 opening={opening}
+                zen={zen}
                 onOpenRepository={openRepository}
+                onToggleZen={() => setZen((value) => !value)}
             />
             <div
                 className={`workspace ${sidebarOpen ? "" : "sidebar-collapsed"}`}
@@ -610,6 +627,7 @@ export default function App() {
                             jumpStamp={jumpStamp}
                             playing={playing}
                             panels={panels}
+                            zen={zen}
                             onShowSidebar={() => setSidebarOpen(true)}
                             onViewModeChange={setViewMode}
                             onShowChangesChange={() =>
@@ -624,6 +642,8 @@ export default function App() {
                             onScroll={handleScroll}
                             onNavigate={navigate}
                             onPlayingChange={setPlaying}
+                            onToggleZen={() => setZen((value) => !value)}
+                            onExitZen={() => setZen(false)}
                         />
                     )}
                 </main>
