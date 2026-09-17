@@ -98,3 +98,7 @@ npm run package
 ## Implementation
 
 Electron handles native dialogs and read-only Git subprocesses. A sandboxed, context-isolated preload exposes four narrowly scoped IPC methods to a React/TypeScript UI built with Vite. The renderer cannot access Node.js or run arbitrary Git commands; revision access is restricted to history retrieved from the selected repository.
+
+## License
+
+[MIT](LICENSE) © 2026 Mohamad Imam Firdaus
