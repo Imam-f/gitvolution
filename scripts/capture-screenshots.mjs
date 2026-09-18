@@ -104,6 +104,15 @@ await rename(join(repo, "src/total.ts"), join(repo, "src/calculate-total.ts"));
 await commit("Give the calculator a more descriptive name");
 await writeFile(join(repo, "src/calculate-total.ts"), final);
 await commit("Round the total to two decimal places");
+await writeFile(join(repo, "src/flux.txt"), "line one\nline two\n");
+await commit("Start flux file as text");
+await writeFile(join(repo, "src/flux.txt"), Buffer.from([1, 2, 0, 3]));
+await commit("Turn flux file binary");
+await writeFile(
+    join(repo, "src/flux.txt"),
+    "line zero\nline one\nline two\nline three\n",
+);
+await commit("Turn flux file back to text");
 
 const env = { ...process.env, NODE_ENV: "test" };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -135,6 +144,13 @@ await app.evaluate(({ dialog }, path) => {
     });
 }, repo);
 await page.getByRole("button", { name: "Open a Git repository" }).click();
+const repositoryTimeline = page.getByRole("region", {
+    name: "Repository file timeline",
+});
+await repositoryTimeline.locator(".repository-change").first().waitFor();
+await repositoryTimeline.scrollIntoViewIfNeeded();
+await page.screenshot({ path: join(out, "timeline.png") });
+
 await page.getByRole("textbox", { name: "Find a file" }).fill("calculate");
 await page.locator(".file-item").click();
 
