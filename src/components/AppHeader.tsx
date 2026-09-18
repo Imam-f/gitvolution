@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import {
+    Copy,
     Focus,
     FolderOpen,
     Fullscreen,
     GitBranch,
+    Minus,
     Minimize,
+    Square,
+    X,
 } from "lucide-react";
 import type { Repository } from "../types";
 
@@ -26,6 +30,7 @@ export default function AppHeader({
     onHome,
 }: Props) {
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
 
     useEffect(() => {
         function onChange() {
@@ -51,6 +56,11 @@ export default function AppHeader({
         } else if (document.documentElement.requestFullscreen) {
             void document.documentElement.requestFullscreen();
         }
+    }
+
+    async function toggleMaximize() {
+        const maximized = await window.gitvolution?.toggleMaximizeWindow();
+        if (typeof maximized === "boolean") setIsMaximized(maximized);
     }
 
     return (
@@ -121,6 +131,34 @@ export default function AppHeader({
                           : "Open repository"}
                     <kbd>Ctrl O</kbd>
                 </button>
+                <div className="window-controls" aria-label="Window controls">
+                    <button
+                        className="window-control"
+                        onClick={() => void window.gitvolution?.minimizeWindow()}
+                        title="Minimize"
+                        aria-label="Minimize window"
+                    >
+                        <Minus size={16} />
+                    </button>
+                    <button
+                        className="window-control"
+                        onClick={() => void toggleMaximize()}
+                        title={isMaximized ? "Restore" : "Maximize"}
+                        aria-label={
+                            isMaximized ? "Restore window" : "Maximize window"
+                        }
+                    >
+                        {isMaximized ? <Copy size={13} /> : <Square size={13} />}
+                    </button>
+                    <button
+                        className="window-control window-close"
+                        onClick={() => void window.gitvolution?.closeWindow()}
+                        title="Close"
+                        aria-label="Close window"
+                    >
+                        <X size={17} />
+                    </button>
+                </div>
             </div>
         </header>
     );

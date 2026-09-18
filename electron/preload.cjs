@@ -12,4 +12,7 @@ contextBridge.exposeInMainWorld("gitvolution", {
     chooseFile: (id) => invoke("file:choose", id),
     getHistory: (id, file) => invoke("file:history", id, file),
     getRevision: (id, hash, file) => invoke("file:revision", id, hash, file),
+    minimizeWindow: () => invoke("window:minimize"),
+    toggleMaximizeWindow: () => invoke("window:toggleMaximize"),
+    closeWindow: () => invoke("window:close"),
 });

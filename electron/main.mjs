@@ -128,6 +128,18 @@ handle("file:revision", async (id, hash, file) => {
     return getFileRevision(repo.path, hash, file);
 });
 
+handle("window:minimize", () => window.minimize());
+
+handle("window:toggleMaximize", () => {
+    if (window.isMaximized()) window.unmaximize();
+    else window.maximize();
+    return window.isMaximized();
+});
+
+handle("window:close", () => {
+    setTimeout(() => window.close(), 0);
+});
+
 function createWindow() {
     window = new BrowserWindow({
         title: "Gitvolution",
@@ -137,6 +149,7 @@ function createWindow() {
         minHeight: 720,
         backgroundColor: "#101312",
         autoHideMenuBar: true,
+        frame: false,
         webPreferences: {
             preload: join(directory, "preload.cjs"),
             contextIsolation: true,

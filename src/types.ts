@@ -32,6 +32,9 @@ export interface GitvolutionAPI {
     chooseFile(id: string): Promise<string | null>;
     getHistory(id: string, file: string): Promise<Commit[]>;
     getRevision(id: string, hash: string, file: string): Promise<Revision>;
+    minimizeWindow(): Promise<void>;
+    toggleMaximizeWindow(): Promise<boolean>;
+    closeWindow(): Promise<void>;
 }
 
 export interface RecentRepository {
