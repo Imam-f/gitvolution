@@ -13,7 +13,13 @@ import {
 } from "lucide-react";
 import type { RefObject } from "react";
 import { version } from "../../package.json";
-import type { RecentFile, RecentRepository, Repository } from "../types";
+import type {
+    RecentFile,
+    RecentRepository,
+    Repository,
+    RepositoryTimelineCommit,
+} from "../types";
+import RepositoryTimeline from "./RepositoryTimeline";
 
 interface Props {
     repository: Repository | null;
@@ -21,11 +27,14 @@ interface Props {
     currentRecentFiles: RecentFile[];
     opening: boolean;
     sidebarOpen: boolean;
+    timeline: RepositoryTimelineCommit[];
+    loadingTimeline: boolean;
     searchInput: RefObject<HTMLInputElement | null>;
     onOpenRepository: () => void;
     onOpenRepositoryPath: (path: string) => void;
     onRemoveRecent: (path: string) => void;
     onOpenRecentFile: (entry: RecentFile) => void;
+    onSelectFile: (file: string) => void;
     onShowSidebar: () => void;
 }
 
@@ -35,11 +44,14 @@ export default function Welcome({
     currentRecentFiles,
     opening,
     sidebarOpen,
+    timeline,
+    loadingTimeline,
     searchInput,
     onOpenRepository,
     onOpenRepositoryPath,
     onRemoveRecent,
     onOpenRecentFile,
+    onSelectFile,
     onShowSidebar,
 }: Props) {
     const focusFileSearch = () => {
@@ -48,7 +60,7 @@ export default function Welcome({
     };
 
     return (
-        <section className="welcome">
+        <section className={`welcome ${repository ? "repository-home" : ""}`}>
             <div className="welcome-topline">
                 {!sidebarOpen && (
                     <button
@@ -128,30 +140,8 @@ export default function Welcome({
                         ))}
                     </div>
                 )}
-                {repository && currentRecentFiles.length > 0 && (
-                    <div className="welcome-recent">
-                        <span className="eyebrow">RECENT FILES</span>
-                        {currentRecentFiles.map((entry) => (
-                            <button
-                                key={entry.file}
-                                className="recent-item"
-                                onClick={() => onOpenRecentFile(entry)}
-                                disabled={opening}
-                                title={`${entry.file} · ${entry.repoName}`}
-                            >
-                                <FileCode2 size={16} />
-                                <span>
-                                    <strong>
-                                        {entry.file.split("/").at(-1)}
-                                    </strong>
-                                    <small>{entry.file}</small>
-                                </span>
-                                <ArrowUpRight size={14} />
-                            </button>
-                        ))}
-                    </div>
-                )}
-                <div className="preview-diagram" aria-hidden="true">
+                {!repository && (
+                    <div className="preview-diagram" aria-hidden="true">
                     <div className="diagram-card">
                         <span>
                             <ArrowLeft size={12} />
@@ -187,8 +177,38 @@ export default function Welcome({
                         <div className="diagram-line w80" />
                         <div className="diagram-line faded w50" />
                     </div>
-                </div>
+                    </div>
+                )}
             </div>
+            {repository && (
+                <RepositoryTimeline
+                    repository={repository}
+                    commits={timeline}
+                    loading={loadingTimeline}
+                    onSelectFile={onSelectFile}
+                />
+            )}
+            {repository && currentRecentFiles.length > 0 && (
+                <div className="welcome-recent timeline-recent-files">
+                    <span className="eyebrow">RECENT FILES</span>
+                    {currentRecentFiles.map((entry) => (
+                        <button
+                            key={entry.file}
+                            className="recent-item"
+                            onClick={() => onOpenRecentFile(entry)}
+                            disabled={opening}
+                            title={`${entry.file} · ${entry.repoName}`}
+                        >
+                            <FileCode2 size={16} />
+                            <span>
+                                <strong>{entry.file.split("/").at(-1)}</strong>
+                                <small>{entry.file}</small>
+                            </span>
+                            <ArrowUpRight size={14} />
+                        </button>
+                    ))}
+                </div>
+            )}
             <div className="welcome-steps">
                 <div>
                     <span>01</span>

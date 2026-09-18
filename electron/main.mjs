@@ -4,6 +4,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
     inspectRepository,
+    getRepositoryTimeline,
     getFileHistory,
     getFileRevision,
 } from "./git-service.mjs";
@@ -103,6 +104,11 @@ handle("file:choose", async (id) => {
             "Select a Git-tracked file inside the open repository.",
         );
     return file;
+});
+
+handle("repository:timeline", async (id) => {
+    const repo = currentRepository(id);
+    return getRepositoryTimeline(repo.path, repo.files, repo.head);
 });
 
 handle("file:history", async (id, file) => {

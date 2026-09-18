@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import {
     getFileHistory,
     getFileRevision,
+    getRepositoryTimeline,
     inspectRepository,
 } from "../electron/git-service.mjs";
 
@@ -178,6 +179,46 @@ test("read-only Git service", async (t) => {
                 head: blobs,
                 files: expectedFiles,
             });
+        },
+    );
+
+    await t.test(
+        "repository timeline maps historical renames to current file columns",
+        async () => {
+            const timeline = await getRepositoryTimeline(repo, expectedFiles);
+            assert.deepEqual(
+                timeline.map((entry) => entry.hash),
+                [
+                    initial,
+                    modified,
+                    unrelated,
+                    moved,
+                    edited,
+                    deleted,
+                    readded,
+                    blobs,
+                ],
+            );
+            assert.deepEqual(
+                timeline
+                    .filter((entry) =>
+                        entry.changes.some((change) => change.file === renamed),
+                    )
+                    .map((entry) => entry.hash),
+                [initial, modified, moved, edited, deleted, readded],
+            );
+            assert.equal(
+                timeline.some((entry) =>
+                    entry.changes.some(
+                        (change) => change.file === "staged.txt",
+                    ),
+                ),
+                false,
+            );
+            assert.deepEqual(
+                await getRepositoryTimeline(repo, expectedFiles, null),
+                [],
+            );
         },
     );
 

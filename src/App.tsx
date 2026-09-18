@@ -40,6 +40,7 @@ import type {
     RecentFile,
     RecentRepository,
     Repository,
+    RepositoryTimelineCommit,
     Revision,
 } from "./types";
 
@@ -54,6 +55,10 @@ export default function App() {
     const [recentFiles, setRecentFiles] =
         useState<RecentFile[]>(loadRecentFiles);
     const [selectedFile, setSelectedFile] = useState("");
+    const [timelineState, setTimelineState] = useState<{
+        key: string;
+        commits: RepositoryTimelineCommit[];
+    } | null>(null);
     const [search, setSearch] = useState("");
     const deferredSearch = useDeferredValue(search);
     const [historyState, setHistoryState] = useState<{
@@ -144,6 +149,13 @@ export default function App() {
     const currentRecentFiles = repository
         ? recentFiles.filter((entry) => entry.repoPath === repository.path)
         : [];
+    const repositoryTimeline =
+        repository && timelineState?.key === repository.id
+            ? timelineState.commits
+            : [];
+    const loadingTimeline = Boolean(
+        repository && timelineState?.key !== repository.id,
+    );
 
     function addRecent(repo: Repository) {
         setRecent((previous) => {
@@ -187,6 +199,7 @@ export default function App() {
         setRepository(repo);
         setSelectedFile("");
         setHistoryState(null);
+        setTimelineState(null);
         setRevisions(null);
         setSearch("");
         setIndex(0);
@@ -293,6 +306,27 @@ export default function App() {
             setError(errorMessage(error));
         }
     }
+
+    useEffect(() => {
+        if (!api || !repository || selectedFile) return;
+        if (timelineState?.key === repository.id) return;
+        let canceled = false;
+        api.getTimeline(repository.id)
+            .then((commits) => {
+                if (canceled) return;
+                startTransition(() =>
+                    setTimelineState({ key: repository.id, commits }),
+                );
+            })
+            .catch((error) => {
+                if (canceled) return;
+                setTimelineState({ key: repository.id, commits: [] });
+                setError(errorMessage(error));
+            });
+        return () => {
+            canceled = true;
+        };
+    }, [repository, selectedFile, timelineState]);
 
     useEffect(() => {
         if (!api || !repository || !selectedFile) return;
@@ -664,11 +698,14 @@ export default function App() {
                             currentRecentFiles={currentRecentFiles}
                             opening={opening}
                             sidebarOpen={sidebarOpen}
+                            timeline={repositoryTimeline}
+                            loadingTimeline={loadingTimeline}
                             searchInput={searchInput}
                             onOpenRepository={openRepository}
                             onOpenRepositoryPath={openRepositoryPath}
                             onRemoveRecent={removeRecent}
                             onOpenRecentFile={openRecentFile}
+                            onSelectFile={selectFile}
                             onShowSidebar={() => setSidebarOpen(true)}
                         />
                     ) : (
@@ -700,6 +737,7 @@ export default function App() {
                             zen={zen}
                             messageExpanded={messageExpanded}
                             onShowSidebar={() => setSidebarOpen(true)}
+                            onGoHome={goHome}
                             onViewModeChange={setViewMode}
                             onShowChangesChange={() =>
                                 setShowChanges(!showChanges)

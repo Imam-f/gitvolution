@@ -870,6 +870,257 @@ kbd {
     margin-left: auto;
     color: #577661;
 }
+.repository-home .welcome-content {
+    padding-bottom: 30px;
+}
+.repository-timeline {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    margin: 15px 0 35px;
+    border: 1px solid #303b32;
+    border-radius: 8px;
+    background: #171717;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.timeline-recent-files {
+    width: min(650px, 100%);
+    margin: 0 auto 30px;
+}
+.repository-timeline-heading {
+    min-height: 86px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 20px;
+    padding: 18px 22px;
+    border-bottom: 1px solid #303b32;
+    background: linear-gradient(90deg, #1d231f, #191919 65%);
+}
+.repository-timeline-heading > div:first-child {
+    min-width: 0;
+}
+.repository-timeline-heading .eyebrow {
+    color: #91a697;
+}
+.repository-timeline-heading h2 {
+    margin: 8px 0 0;
+    color: #e2e8e3;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
+}
+.repository-timeline-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+}
+.repository-zoom-controls {
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    border: 1px solid #36423a;
+    border-radius: 5px;
+    background: #171a18;
+}
+.repository-zoom-controls button {
+    height: 27px;
+    min-width: 27px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #8e9c92;
+    padding: 0 6px;
+}
+.repository-zoom-controls button:hover {
+    background: #2a302c;
+    color: #d8e1da;
+}
+.repository-zoom-controls button:disabled {
+    color: #505b53;
+    opacity: 1;
+}
+.repository-zoom-controls .repository-zoom-value {
+    min-width: 45px;
+    color: #aab8ae;
+    font: 8px var(--mono);
+}
+.repository-zoom-controls .repository-zoom-value:disabled {
+    color: #708077;
+}
+.repository-timeline-state {
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #839287;
+    font-size: 11px;
+}
+.repository-timeline-scroll {
+    max-height: min(62vh, 640px);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+.repository-timeline-grid {
+    display: grid;
+    grid-template-columns: 210px repeat(
+            var(--repository-commit-count),
+            var(--repository-time-width)
+        );
+    grid-template-rows: 64px repeat(
+            var(--repository-file-count),
+            var(--repository-file-height)
+        );
+    width: max-content;
+    min-width: 100%;
+    position: relative;
+    isolation: isolate;
+}
+.repository-timeline-contents {
+    display: contents;
+}
+.repository-timeline-corner,
+.repository-time-heading,
+.repository-file-label {
+    background: #1b1b1b;
+}
+.repository-timeline-corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    padding: 0 17px;
+    border-right: 1px solid #343f36;
+    border-bottom: 1px solid #343f36;
+    color: #6f8175;
+    font: 8px var(--mono);
+    letter-spacing: 1.2px;
+}
+.repository-time-heading {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    min-width: 0;
+    border-right: 1px solid #292f2b;
+    border-bottom: 1px solid #343f36;
+    padding: 12px 11px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 5px;
+    text-align: center;
+}
+.repository-time-heading time,
+.repository-time-heading small {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.repository-time-heading time {
+    color: #c5d0c8;
+    font: 9px var(--mono);
+    font-weight: 500;
+}
+.repository-time-heading small {
+    color: #6e7e72;
+    font: 8px var(--mono);
+}
+.repository-time-track {
+    z-index: 0;
+    pointer-events: none;
+    border-right: 1px solid #252925;
+    background: linear-gradient(
+        90deg,
+        transparent calc(50% - 0.5px),
+        #303831 calc(50% - 0.5px),
+        #303831 calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+    );
+}
+.repository-file-row {
+    z-index: 0;
+    pointer-events: none;
+    border-bottom: 1px solid #252925;
+}
+.repository-file-label {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 3px;
+    padding: 0 12px 0 17px;
+    border: 0;
+    border-right: 1px solid #343f36;
+    border-bottom: 1px solid #292f2b;
+    text-align: left;
+}
+.repository-file-label:hover {
+    background: #272b28;
+}
+.repository-file-label strong,
+.repository-file-label small {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.repository-file-label strong {
+    color: #c5d0c8;
+    font: 10px var(--mono);
+    font-weight: 500;
+}
+.repository-file-label small {
+    color: #6e7e72;
+    font: 8px var(--mono);
+}
+.repository-change {
+    align-self: stretch;
+    justify-self: stretch;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    padding: 0;
+}
+.repository-change:hover {
+    background: #38413a66;
+}
+.repository-change > span {
+    width: 9px;
+    height: 9px;
+    border: 2px solid #151515;
+    border-radius: 50%;
+    background: #a6b1a9;
+    box-shadow: 0 0 0 1px #58625b;
+}
+.repository-change.status-a > span {
+    background: #a9cfb3;
+    box-shadow: 0 0 0 1px #66836d;
+}
+.repository-change.status-d > span {
+    background: #c69b8e;
+    box-shadow: 0 0 0 1px #7d5c53;
+}
+.repository-change.status-r > span {
+    border-radius: 2px;
+    background: #b4aa80;
+    box-shadow: 0 0 0 1px #746d50;
+    transform: rotate(45deg);
+}
 .viewer-toolbar {
     height: 58px;
     min-height: 58px;
@@ -888,7 +1139,24 @@ kbd {
     min-width: 0;
     font: 11px var(--mono);
 }
-.file-breadcrumb > svg {
+.file-breadcrumb-link {
+    min-width: 0;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    padding: 6px 7px;
+    margin-left: -7px;
+    color: inherit;
+    text-align: left;
+}
+.file-breadcrumb-link:hover {
+    background: #292929;
+}
+.file-breadcrumb-link > svg {
     color: #8da795;
 }
 .breadcrumb-directory {
@@ -2342,6 +2610,22 @@ kbd {
     }
     .preview-diagram {
         margin-top: 43px;
+    }
+    .repository-timeline-heading {
+        min-height: 76px;
+        padding: 14px 16px;
+    }
+    .repository-timeline-heading h2 {
+        font-size: 15px;
+    }
+    .repository-timeline-grid {
+        grid-template-columns: 150px repeat(
+                var(--repository-commit-count),
+                var(--repository-time-width)
+            );
+    }
+    .repository-file-label {
+        padding-left: 12px;
     }
     .viewer-toolbar {
         padding: 0 12px;

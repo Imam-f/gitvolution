@@ -18,6 +18,17 @@ export interface Commit {
     status: string;
 }
 
+export interface RepositoryTimelineCommit {
+    hash: string;
+    shortHash: string;
+    subject: string;
+    date: string;
+    changes: Array<{
+        file: string;
+        status: string;
+    }>;
+}
+
 export interface Revision {
     content: string | null;
     binary: boolean;
@@ -29,6 +40,7 @@ export interface Revision {
 export interface GitvolutionAPI {
     chooseRepository(): Promise<Repository | null>;
     openPath(path: string): Promise<Repository>;
+    getTimeline(id: string): Promise<RepositoryTimelineCommit[]>;
     chooseFile(id: string): Promise<string | null>;
     getHistory(id: string, file: string): Promise<Commit[]>;
     getRevision(id: string, hash: string, file: string): Promise<Revision>;

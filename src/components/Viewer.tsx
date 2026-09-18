@@ -60,6 +60,7 @@ interface Props {
     zen: boolean;
     messageExpanded: boolean;
     onShowSidebar: () => void;
+    onGoHome: () => void;
     onViewModeChange: (mode: "compare" | "diff") => void;
     onShowChangesChange: () => void;
     onCollapse: () => void;
@@ -102,6 +103,7 @@ export default function Viewer({
     zen,
     messageExpanded,
     onShowSidebar,
+    onGoHome,
     onViewModeChange,
     onShowChangesChange,
     onCollapse,
@@ -227,18 +229,25 @@ export default function Viewer({
                             <PanelLeftOpen size={17} />
                         </button>
                     )}
-                    <FileCode2 size={17} />
-                    <span
-                        className="breadcrumb-directory"
-                        title={fileDirectory}
+                    <button
+                        className="file-breadcrumb-link"
+                        onClick={onGoHome}
+                        aria-label="Back to repository overview"
+                        title="Back to repository overview"
                     >
-                        {fileDirectory
-                            ? `${fileDirectory} /`
-                            : repository?.name
-                              ? `${repository.name} /`
-                              : ""}
-                    </span>
-                    <strong title={selectedFile}>{fileName}</strong>
+                        <FileCode2 size={17} />
+                        <span
+                            className="breadcrumb-directory"
+                            title={fileDirectory}
+                        >
+                            {fileDirectory
+                                ? `${fileDirectory} /`
+                                : repository?.name
+                                  ? `${repository.name} /`
+                                  : ""}
+                        </span>
+                        <strong title={selectedFile}>{fileName}</strong>
+                    </button>
                 </div>
                 <ViewerToolbar
                     viewMode={viewMode}

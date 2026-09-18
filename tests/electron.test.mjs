@@ -184,10 +184,54 @@ test(
         await expect(page.locator(".repo-info strong")).toHaveText(
             "example-repository",
         );
+        await expect(
+            page.locator(".welcome-content .welcome-recent"),
+        ).toContainText("example-repository");
+        const repositoryTimeline = page.getByRole("region", {
+            name: "Repository file timeline",
+        });
+        await expect(repositoryTimeline).toBeVisible();
+        await expect(
+            repositoryTimeline.locator(
+                '.repository-file-label[title="Open src/calculate-total.ts"]',
+            ),
+        ).toBeVisible();
+        await expect(repositoryTimeline.locator(".repository-change")).toHaveCount(
+            10,
+        );
+        const timelineGrid = repositoryTimeline.locator(
+            ".repository-timeline-grid",
+        );
+        await expect(timelineGrid).toHaveCSS(
+            "--repository-time-width",
+            "118px",
+        );
+        await repositoryTimeline
+            .getByRole("button", { name: "Zoom timeline in" })
+            .click();
+        await expect(timelineGrid).toHaveCSS(
+            "--repository-time-width",
+            "148px",
+        );
+        await repositoryTimeline
+            .getByRole("button", { name: "Reset timeline zoom" })
+            .click();
+        await repositoryTimeline.scrollIntoViewIfNeeded();
+        await expect(
+            repositoryTimeline.getByRole("group", { name: "Timeline zoom" }),
+        ).toBeInViewport();
+        await page.screenshot({
+            path: join(screenshotDirectory, "gitvolution-timeline.png"),
+        });
         await page
             .getByRole("textbox", { name: "Find a file" })
             .fill("calculate");
         await expect(page.locator(".file-item")).toHaveCount(1);
+        await page.locator(".file-item").click();
+        await page
+            .getByRole("button", { name: "Back to repository overview" })
+            .click();
+        await expect(repositoryTimeline).toBeVisible();
         await page.locator(".file-item").click();
         // The default view is the two-panel change diff; use the three-panel evolution view.
         const evolutionButton = page.getByRole("button", {

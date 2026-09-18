@@ -185,6 +185,116 @@ export async function inspectRepository(directory) {
     };
 }
 
+/** Return repository commits with changes mapped to the currently tracked files. */
+export async function getRepositoryTimeline(
+    repositoryPath,
+    currentFiles,
+    snapshotHead,
+) {
+    if (!Array.isArray(currentFiles)) {
+        throw new Error("Current files must be an array.");
+    }
+    for (const file of currentFiles) validateFilePath(file);
+    if (
+        snapshotHead !== undefined &&
+        snapshotHead !== null &&
+        (typeof snapshotHead !== "string" || !HASH_PATTERN.test(snapshotHead))
+    ) {
+        throw new Error("Snapshot must be a full Git commit hash.");
+    }
+    const root = await repositoryRoot(repositoryPath);
+    const head =
+        snapshotHead === undefined ? await repositoryHead(root) : snapshotHead;
+    if (head === null || currentFiles.length === 0) return [];
+
+    const output = await git(root, [
+        "log",
+        "--topo-order",
+        "--root",
+        "--no-color",
+        "--no-decorate",
+        "--no-show-signature",
+        "--no-notes",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--diff-merges=first-parent",
+        "--encoding=UTF-8",
+        "--abbrev=7",
+        "--format=%x00COMMIT%x00%H%x00%h%x00%s%x00%aI%x00",
+        "--name-status",
+        "--find-renames",
+        "-z",
+        head,
+        "--",
+    ]);
+
+    const paths = new Map(
+        currentFiles.map((file) => [file, new Set([file])]),
+    );
+    const tokens = output.toString("utf8").split("\0");
+    const commits = [];
+    let current = null;
+    let changes = new Map();
+    function finishCommit() {
+        if (current && changes.size) {
+            commits.push({
+                ...current,
+                changes: [...changes].map(([file, status]) => ({
+                    file,
+                    status,
+                })),
+            });
+        }
+    }
+
+    for (let index = 0; index < tokens.length; ) {
+        const token = tokens[index++].replace(/^\r?\n/, "");
+        if (!token) continue;
+        if (token === "COMMIT") {
+            finishCommit();
+            const [hash, shortHash, subject, date] = tokens.slice(
+                index,
+                index + 4,
+            );
+            if (
+                !HASH_PATTERN.test(hash ?? "") ||
+                !date ||
+                Number.isNaN(Date.parse(date))
+            ) {
+                throw new Error("Git returned an invalid timeline record.");
+            }
+            current = { hash, shortHash, subject, date };
+            changes = new Map();
+            index += 4;
+            continue;
+        }
+        if (!current || !/^(?:[ADMTUXB]|[RCM]\d+)$/.test(token)) {
+            throw new Error("Git returned an invalid file status in timeline.");
+        }
+        const previousPath = tokens[index++];
+        const renamed = token.startsWith("R");
+        const copied = token.startsWith("C");
+        const revisionPath =
+            renamed || copied ? tokens[index++] : previousPath;
+        if (previousPath === undefined || revisionPath === undefined) {
+            throw new Error("Git returned an incomplete timeline status.");
+        }
+
+        const currentPaths = paths.get(revisionPath);
+        if (currentPaths) {
+            for (const file of currentPaths) changes.set(file, token);
+        }
+        if (renamed && currentPaths) {
+            paths.delete(revisionPath);
+            const earlierPaths = paths.get(previousPath) ?? new Set();
+            for (const file of currentPaths) earlierPaths.add(file);
+            paths.set(previousPath, earlierPaths);
+        }
+    }
+    finishCommit();
+    return commits.reverse();
+}
+
 /** Return Git's --follow history in ancestor-first order, with each revision's path. */
 export async function getFileHistory(repositoryPath, filePath, snapshotHead) {
     validateFilePath(filePath);
